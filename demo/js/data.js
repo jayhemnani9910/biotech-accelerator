@@ -1,0 +1,496 @@
+/**
+ * Pre-recorded demo data for Biotech Research Accelerator
+ * Contains scenarios for: Lysozyme, EGFR, and BRAF
+ */
+
+const DEMO_SCENARIOS = {
+    lysozyme: {
+        query: "What mutations stabilize lysozyme? Analyze PDB 1LYZ",
+        steps: [
+            {
+                node: "parser",
+                delay: 800,
+                output: "lysozyme, 1LYZ",
+                terminalOutput: [
+                    { text: "Parsing query...", class: "info" },
+                    { text: "Extracted protein: lysozyme", class: "success" },
+                    { text: "Extracted PDB ID: 1LYZ", class: "success" },
+                    { text: "Query type: stability analysis", class: "info" }
+                ]
+            },
+            {
+                node: "uniprot",
+                delay: 1200,
+                output: "P00698",
+                terminalOutput: [
+                    { text: "Querying UniProt...", class: "info" },
+                    { text: "Resolved: P00698 (Lysozyme C)", class: "success" },
+                    { text: "Organism: Gallus gallus (Chicken)", class: "info" },
+                    { text: "Length: 147 amino acids", class: "info" }
+                ]
+            },
+            {
+                node: "pubmed",
+                delay: 1800,
+                output: "5 papers",
+                terminalOutput: [
+                    { text: "Searching PubMed...", class: "info" },
+                    { text: "Query: lysozyme mutation stability", class: "info" },
+                    { text: "Found 5 relevant papers", class: "success" },
+                    { text: "Top hit: Matsumura et al. (1988)", class: "info" }
+                ]
+            },
+            {
+                node: "structure",
+                delay: 2200,
+                output: "NMA: 0.145 A",
+                terminalOutput: [
+                    { text: "Downloading PDB 1LYZ...", class: "info" },
+                    { text: "Structure: 1.33 A resolution", class: "success" },
+                    { text: "Running Normal Mode Analysis...", class: "info" },
+                    { text: "Mean flexibility: 0.145 A^2", class: "success" },
+                    { text: "Identified 3 flexible regions", class: "info" }
+                ]
+            },
+            {
+                node: "synthesis",
+                delay: 1500,
+                output: "D67H mutation",
+                terminalOutput: [
+                    { text: "Cross-referencing mutations...", class: "info" },
+                    { text: "Analyzing flexibility hotspots...", class: "info" },
+                    { text: "Found stabilizing mutation: D67H", class: "success" },
+                    { text: "Confidence: HIGH", class: "success" }
+                ]
+            }
+        ],
+        report: `# Lysozyme Stability Analysis
+
+## Executive Summary
+Analysis of hen egg-white lysozyme (PDB: 1LYZ) reveals **D67H** as a key stabilizing mutation, supported by literature evidence and structural analysis.
+
+---
+
+## Literature Evidence
+
+### Key Papers Found (5 total)
+1. **Matsumura M et al. (1988)** - Nature
+   - Identified disulfide bond engineering for stability
+   - Demonstrated 2.5x increase in thermal stability
+
+2. **Shoichet BK et al. (1995)** - PNAS
+   - Cavity-filling mutations improve packing
+   - D67H fills internal cavity, adds hydrogen bond
+
+3. **Eijsink VG et al. (2004)** - J Biotechnol
+   - Review of protein engineering strategies
+   - Confirms D67 region as stability hotspot
+
+---
+
+## Structural Analysis
+
+### PDB 1LYZ Overview
+| Property | Value |
+|----------|-------|
+| Resolution | 1.33 A |
+| Method | X-ray diffraction |
+| Chains | 1 |
+| Residues | 129 |
+
+### Normal Mode Analysis
+- **Mean B-factor**: 0.145 A^2
+- **Flexible regions**:
+  - Loop 60-70 (hinge region)
+  - C-terminus (residues 125-129)
+  - Active site cleft
+
+### Mutation Site: D67
+- Location: Hinge region between domains
+- Solvent accessibility: 15% (partially buried)
+- Current residue: Aspartate (negative charge)
+- Suggested: Histidine (neutral, larger)
+
+---
+
+## Recommended Mutation: D67H
+
+### Rationale
+1. **Cavity filling**: His side chain fills internal void
+2. **Hydrogen bonding**: Imidazole forms new H-bond with backbone
+3. **Charge neutralization**: Removes unfavorable buried negative charge
+4. **Literature support**: Confirmed in 3 independent studies
+
+### Predicted Effect
+- **Tm increase**: +8-12 C
+- **Half-life increase**: ~3x at 70 C
+- **Activity retention**: >90%
+
+---
+
+## Suggested Experiments
+
+1. **Site-directed mutagenesis**
+   - Clone D67H variant
+   - Express in E. coli BL21(DE3)
+
+2. **Biophysical characterization**
+   - Differential scanning calorimetry (DSC)
+   - Circular dichroism (CD) thermal melt
+
+3. **Activity assay**
+   - Micrococcus lysodeikticus lysis assay
+   - Compare WT vs D67H kinetics
+
+---
+
+*Report generated by Biotech Research Accelerator*`
+    },
+
+    egfr: {
+        query: "Find inhibitors for EGFR kinase",
+        steps: [
+            {
+                node: "parser",
+                delay: 800,
+                output: "EGFR, kinase",
+                terminalOutput: [
+                    { text: "Parsing query...", class: "info" },
+                    { text: "Extracted target: EGFR", class: "success" },
+                    { text: "Domain: kinase", class: "success" },
+                    { text: "Query type: drug discovery", class: "info" }
+                ]
+            },
+            {
+                node: "uniprot",
+                delay: 1200,
+                output: "P00533",
+                terminalOutput: [
+                    { text: "Querying UniProt...", class: "info" },
+                    { text: "Resolved: P00533 (EGFR)", class: "success" },
+                    { text: "Full name: Epidermal growth factor receptor", class: "info" },
+                    { text: "Organism: Homo sapiens", class: "info" }
+                ]
+            },
+            {
+                node: "pubmed",
+                delay: 2000,
+                output: "8 papers",
+                terminalOutput: [
+                    { text: "Searching PubMed...", class: "info" },
+                    { text: "Query: EGFR kinase inhibitor", class: "info" },
+                    { text: "Found 8 relevant papers", class: "success" },
+                    { text: "Top hit: Lynch et al. (2004) NEJM", class: "info" }
+                ]
+            },
+            {
+                node: "structure",
+                delay: 2500,
+                output: "4 structures",
+                terminalOutput: [
+                    { text: "Searching PDB for EGFR...", class: "info" },
+                    { text: "Found 4 relevant structures", class: "success" },
+                    { text: "1M17: EGFR + Erlotinib (2.6 A)", class: "info" },
+                    { text: "2ITY: EGFR + Gefitinib (2.6 A)", class: "info" },
+                    { text: "Analyzing binding sites...", class: "info" }
+                ]
+            },
+            {
+                node: "synthesis",
+                delay: 1800,
+                output: "3 inhibitors",
+                terminalOutput: [
+                    { text: "Querying ChEMBL...", class: "info" },
+                    { text: "Cross-referencing compounds...", class: "info" },
+                    { text: "Found 3 FDA-approved inhibitors", class: "success" },
+                    { text: "Erlotinib, Gefitinib, Osimertinib", class: "success" }
+                ]
+            }
+        ],
+        report: `# EGFR Kinase Inhibitor Analysis
+
+## Executive Summary
+EGFR (Epidermal Growth Factor Receptor) is a validated oncology target with **3 FDA-approved inhibitors**. Analysis reveals key binding interactions and resistance mechanisms.
+
+---
+
+## Target Overview
+
+### EGFR (P00533)
+| Property | Value |
+|----------|-------|
+| Gene | EGFR (HER1, ErbB1) |
+| Family | Receptor tyrosine kinase |
+| Location | Chromosome 7p11.2 |
+| Size | 1210 amino acids |
+
+### Clinical Relevance
+- **NSCLC**: 10-15% of patients have activating mutations
+- **Glioblastoma**: Amplified in 40% of cases
+- **Colorectal cancer**: Target for cetuximab (antibody)
+
+---
+
+## Approved Inhibitors
+
+### 1. Erlotinib (Tarceva)
+- **Type**: Reversible, ATP-competitive
+- **IC50**: 2 nM
+- **Approval**: 2004 (NSCLC, pancreatic)
+- **Structure**: PDB 1M17
+
+### 2. Gefitinib (Iressa)
+- **Type**: Reversible, ATP-competitive
+- **IC50**: 33 nM
+- **Approval**: 2003 (NSCLC)
+- **Structure**: PDB 2ITY
+
+### 3. Osimertinib (Tagrisso)
+- **Type**: Irreversible, 3rd generation
+- **IC50**: 12 nM (T790M mutant)
+- **Approval**: 2015 (T790M+ NSCLC)
+- **Key advantage**: Overcomes T790M resistance
+
+---
+
+## Structural Analysis
+
+### ATP Binding Site
+Key residues for inhibitor binding:
+- **Gatekeeper**: T790 (mutation site)
+- **Hinge**: M793 (H-bond acceptor)
+- **DFG motif**: D855-F856-G857
+- **P-loop**: G719-X-G-X-X-G724
+
+### Binding Mode (Erlotinib)
+1. Quinazoline core occupies adenine pocket
+2. Aniline moiety extends to hydrophobic region
+3. Ethynyl group contacts gatekeeper
+4. Ether oxygens form water-mediated contacts
+
+---
+
+## Resistance Mechanisms
+
+### T790M Mutation (50% of cases)
+- Gatekeeper mutation
+- Increases ATP affinity
+- Blocks erlotinib/gefitinib binding
+- **Solution**: Osimertinib (covalent inhibitor)
+
+### C797S Mutation (emerging)
+- Prevents osimertinib covalent binding
+- No approved inhibitor yet
+- Active area of research
+
+---
+
+## Drug Discovery Opportunities
+
+### Suggested Approaches
+1. **Allosteric inhibitors**
+   - Target dimerization interface
+   - Avoid ATP site mutations
+
+2. **PROTACs**
+   - Degrade EGFR protein
+   - Overcome resistance mutations
+
+3. **Combination therapy**
+   - EGFR + MEK inhibitors
+   - EGFR + CDK4/6 inhibitors
+
+---
+
+*Report generated by Biotech Research Accelerator*`
+    },
+
+    braf: {
+        query: "Analyze BRAF V600E mutation and find inhibitors",
+        steps: [
+            {
+                node: "parser",
+                delay: 800,
+                output: "BRAF, V600E",
+                terminalOutput: [
+                    { text: "Parsing query...", class: "info" },
+                    { text: "Extracted target: BRAF", class: "success" },
+                    { text: "Mutation: V600E", class: "success" },
+                    { text: "Query type: mutation + drug discovery", class: "info" }
+                ]
+            },
+            {
+                node: "uniprot",
+                delay: 1200,
+                output: "P15056",
+                terminalOutput: [
+                    { text: "Querying UniProt...", class: "info" },
+                    { text: "Resolved: P15056 (BRAF)", class: "success" },
+                    { text: "Full name: B-Raf proto-oncogene", class: "info" },
+                    { text: "Kinase domain: 457-717", class: "info" }
+                ]
+            },
+            {
+                node: "pubmed",
+                delay: 2000,
+                output: "12 papers",
+                terminalOutput: [
+                    { text: "Searching PubMed...", class: "info" },
+                    { text: "Query: BRAF V600E inhibitor melanoma", class: "info" },
+                    { text: "Found 12 relevant papers", class: "success" },
+                    { text: "Top hit: Chapman et al. (2011) NEJM", class: "info" }
+                ]
+            },
+            {
+                node: "structure",
+                delay: 2200,
+                output: "3PLX analyzed",
+                terminalOutput: [
+                    { text: "Downloading PDB 3PLX...", class: "info" },
+                    { text: "V600E mutant structure (2.9 A)", class: "success" },
+                    { text: "Analyzing activation loop...", class: "info" },
+                    { text: "V600E disrupts hydrophobic pocket", class: "info" },
+                    { text: "Causes constitutive activation", class: "warning" }
+                ]
+            },
+            {
+                node: "synthesis",
+                delay: 1800,
+                output: "3 inhibitors",
+                terminalOutput: [
+                    { text: "Querying ChEMBL...", class: "info" },
+                    { text: "Cross-referencing with mutations...", class: "info" },
+                    { text: "Found 3 FDA-approved inhibitors", class: "success" },
+                    { text: "Vemurafenib, Dabrafenib, Encorafenib", class: "success" }
+                ]
+            }
+        ],
+        report: `# BRAF V600E Analysis
+
+## Executive Summary
+BRAF V600E is the most common oncogenic mutation in melanoma (50%). Analysis reveals the structural basis of constitutive activation and identifies **3 FDA-approved inhibitors**.
+
+---
+
+## Mutation Analysis
+
+### V600E Overview
+| Property | Value |
+|----------|-------|
+| Gene | BRAF |
+| Position | 600 |
+| Wild-type | Valine (V) |
+| Mutant | Glutamic acid (E) |
+| Frequency | 50% of melanomas |
+
+### Structural Impact
+The V600E mutation:
+1. **Disrupts hydrophobic pocket** in activation loop
+2. **Mimics phosphorylation** (negative charge)
+3. **Locks kinase in active conformation**
+4. **Increases kinase activity** ~500-fold
+
+### Molecular Mechanism
+\`\`\`
+Wild-type: V600 packs against F468
+           Maintains autoinhibited state
+
+V600E:     Glutamate disrupts packing
+           Negative charge mimics pT599
+           Constitutive signaling
+\`\`\`
+
+---
+
+## Clinical Significance
+
+### Cancer Types with BRAF V600E
+| Cancer | Frequency |
+|--------|-----------|
+| Melanoma | 50% |
+| Papillary thyroid | 45% |
+| Colorectal | 10% |
+| Hairy cell leukemia | 100% |
+| Langerhans histiocytosis | 50% |
+
+---
+
+## Approved Inhibitors
+
+### 1. Vemurafenib (Zelboraf)
+- **Type**: Type I inhibitor (DFG-in)
+- **IC50**: 31 nM (V600E)
+- **Selectivity**: 100x vs wild-type
+- **Approval**: 2011 (melanoma)
+
+### 2. Dabrafenib (Tafinlar)
+- **Type**: Type I inhibitor
+- **IC50**: 0.8 nM (V600E)
+- **Selectivity**: 7x vs wild-type
+- **Approval**: 2013 (melanoma)
+
+### 3. Encorafenib (Braftovi)
+- **Type**: Type I inhibitor
+- **IC50**: 0.35 nM (V600E)
+- **Half-life**: 30 hours (longest)
+- **Approval**: 2018 (melanoma, CRC)
+
+---
+
+## Resistance Mechanisms
+
+### Acquired Resistance (6-12 months)
+1. **NRAS mutations** (20%)
+   - Bypass BRAF through RAS activation
+
+2. **BRAF amplification** (15%)
+   - Overwhelms inhibitor concentration
+
+3. **MEK mutations** (5%)
+   - Downstream pathway reactivation
+
+### Solution: Combination Therapy
+- **BRAF + MEK inhibitors**
+- Dabrafenib + Trametinib (MEKi)
+- Encorafenib + Binimetinib (MEKi)
+- Improves PFS from 6 to 12+ months
+
+---
+
+## Structural Details
+
+### PDB 3PLX (V600E + PLX4032)
+- Resolution: 2.9 A
+- Shows inhibitor binding mode
+- Key interactions:
+  - H-bond to hinge (C532)
+  - Hydrophobic contact with gatekeeper (T529)
+  - Sulfonamide anchors to DFG motif
+
+---
+
+## Suggested Experiments
+
+1. **For new inhibitor development**
+   - Target DFG-out conformation (Type II)
+   - Design paradox breakers
+   - Develop PROTACs
+
+2. **For combination studies**
+   - Screen with MEK, ERK inhibitors
+   - Test with immunotherapy (anti-PD1)
+
+3. **For resistance studies**
+   - Engineer NRAS co-mutations
+   - Model amplification in vitro
+
+---
+
+*Report generated by Biotech Research Accelerator*`
+    }
+};
+
+// Export for use in other modules
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = DEMO_SCENARIOS;
+}
