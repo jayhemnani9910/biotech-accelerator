@@ -1,5 +1,16 @@
 # Biotech Research Accelerator
 
+[![CI](https://github.com/jayhemnani9910/biotech-accelerator/actions/workflows/ci.yml/badge.svg)](https://github.com/jayhemnani9910/biotech-accelerator/actions/workflows/ci.yml)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+
+## Demo
+
+Interactive demo: **[jayhemnani9910.github.io/biotech-accelerator](https://jayhemnani9910.github.io/biotech-accelerator/)**
+
+![Biotech Research Accelerator](docs/diagrams/social-preview.png)
+
 A multi-agent AI system that doesn't just READ about biology - it ANALYZES molecular data, cross-references literature with computational evidence, and suggests experiments.
 
 ## What Makes It Different
@@ -58,7 +69,7 @@ Final Report with citations, structural insights, and next steps
 
 ```bash
 # Clone the repo
-git clone https://github.com/your-username/biotech-accelerator.git
+git clone https://github.com/jayhemnani9910/biotech-accelerator.git
 cd biotech-accelerator
 
 # Create virtual environment
@@ -75,6 +86,15 @@ pip install -e ".[dev]"
 - httpx (async HTTP client)
 - LangGraph (workflow orchestration)
 - Rich (terminal formatting)
+
+### Docker
+
+Avoids the pain of building ProDy, RDKit, and torch-geometric natively:
+
+```bash
+docker build -t biotech-accelerator .
+docker run --rm -it --env-file .env biotech-accelerator
+```
 
 ## Usage
 
@@ -99,8 +119,8 @@ asyncio.run(main())
 ### CLI
 
 ```bash
-# Run test pipeline
-python test_full_pipeline.py
+# Run integration tests (hits live APIs)
+pytest -m integration
 
 # Run examples
 python examples/run_examples.py
@@ -143,7 +163,7 @@ biotech-accelerator/
 │   ├── graph/              # LangGraph workflow
 │   │   └── biotech_graph.py
 │   │
-│   ├── ports/              # Abstract interfaces
+│   ├── ports/              # Data models
 │   │   ├── structure.py
 │   │   ├── sequence.py
 │   │   ├── literature.py
@@ -153,7 +173,7 @@ biotech-accelerator/
 │       └── cache.py            # Response caching
 │
 ├── examples/               # Example scripts
-├── test_full_pipeline.py   # Integration test
+├── tests/                  # Unit + integration tests
 └── README.md
 ```
 
@@ -234,6 +254,8 @@ synthesis_node (combine all evidence + experiments)
 This project combines several repositories:
 - `revolu-idea`: Multi-agent orchestration
 - `nobel-dataintelligence`: Molecular analysis
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for dev setup and PR guidelines.
 
 ## License
 
