@@ -11,14 +11,13 @@ This tests:
 
 import asyncio
 import sys
-from pathlib import Path
 
-# Add package to path
-sys.path.insert(0, str(Path(__file__).parent))
-
+import pytest
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
+
+pytestmark = pytest.mark.integration
 
 console = Console()
 

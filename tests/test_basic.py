@@ -9,8 +9,9 @@ import asyncio
 import sys
 from pathlib import Path
 
-# Add package to path
-sys.path.insert(0, str(Path(__file__).parent))
+import pytest
+
+pytestmark = pytest.mark.integration
 
 from biotech_accelerator.adapters.pdb_adapter import PDBAdapter
 from biotech_accelerator.agents.nodes.structure_analyst import (
