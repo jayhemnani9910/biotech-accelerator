@@ -11,14 +11,14 @@ from pathlib import Path
 
 import pytest
 
-pytestmark = pytest.mark.integration
-
 from biotech_accelerator.adapters.pdb_adapter import PDBAdapter
 from biotech_accelerator.agents.nodes.structure_analyst import (
     StructureAnalystAgent,
     analyze_protein_structure,
 )
 from biotech_accelerator.analysis.nma_wrapper import NMAAnalyzer
+
+pytestmark = pytest.mark.integration
 
 
 async def test_pdb_adapter():
