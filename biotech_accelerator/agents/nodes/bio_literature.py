@@ -88,7 +88,6 @@ class BioLiteratureAgent:
             Updated state with literature evidence
         """
         query = state.get("query", "") or state.get("root_query", "")
-        pdb_ids = state.get("pdb_ids", [])
         target_proteins = state.get("target_proteins", [])
         protein_names = state.get("protein_names", [])  # Also get simple string names
 

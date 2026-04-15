@@ -68,7 +68,6 @@ class ExperimentSuggester:
 
         # Get data from state
         mutations = state.get("mutations", [])
-        insights = state.get("insights", [])
         drug_insights = state.get("drug_insights", [])
         pdb_ids = state.get("analyzed_pdb_ids", [])
         struct_summary = state.get("structure_summary", "")

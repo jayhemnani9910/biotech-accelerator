@@ -101,7 +101,6 @@ class NMAAnalyzer:
         # Calculate vibrational entropy
         temp = 300  # Kelvin
         kb = 0.001987  # kcal/(mol·K)
-        hbar = 1.0  # Simplified units
 
         # S_vib = kb * sum(ln(eigenvalue))
         positive_eigenvalues = eigenvalues[eigenvalues > 0]
