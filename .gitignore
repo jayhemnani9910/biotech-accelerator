@@ -57,3 +57,6 @@ chats.md
 
 # Per-machine Claude Code settings (project-level .claude/settings.json is fine)
 .claude/settings.local.json
+
+# uv lock file — project uses standard pyproject, keep repo tool-agnostic
+uv.lock
