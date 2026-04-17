@@ -15,14 +15,11 @@ authors = [
 keywords = ["biotech", "AI", "multi-agent", "protein", "research", "langgraph"]
 
 dependencies = [
-    # Core orchestration (from revolu-idea)
+    # Workflow orchestration
     "langgraph>=0.2.0",
-    "langchain>=0.3.0",
-    "langchain-openai>=0.2.0",
 
-    # LLM providers
-    "openai>=1.0.0",
-    "groq>=0.4.0",
+    # MCP server (consumed by Claude Code and other MCP clients)
+    "mcp>=1.0.0",
 
     # Molecular biology (from nobel-dataintelligence)
     "prody>=2.0",
@@ -60,6 +57,7 @@ dev = [
 
 [project.scripts]
 biotech = "biotech_accelerator.main:main"
+biotech-mcp = "biotech_accelerator.mcp_server:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["biotech_accelerator"]

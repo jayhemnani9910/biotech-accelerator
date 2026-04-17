@@ -132,15 +132,44 @@ asyncio.run(main())
 ### CLI
 
 ```bash
-# Run a query end-to-end
-biotech "Analyze flexibility of PDB 1LYZ"
+# Run the full pipeline end-to-end
+biotech "What mutations stabilize lysozyme?"
+
+# Machine-readable JSON (ideal for piping into coding agents)
+biotech "Find EGFR inhibitors" --json
 
 # Analyze one or more PDB IDs directly
 biotech --pdb 1LYZ 4HHB
+biotech --pdb 1LYZ --json
 
 # Run integration tests (hits live APIs)
 pytest -m integration
 ```
+
+### Use with Claude Code (MCP)
+
+The repository ships an MCP server so Claude Code (or any MCP-compatible
+client) can call the biotech pipeline as native tools. The server is
+registered via `.mcp.json` at the repo root; point Claude Code at it:
+
+```bash
+# Install the package (includes the `biotech-mcp` entry point)
+pip install -e .
+
+# Launch Claude Code from the repo root — it picks up .mcp.json automatically.
+# Claude Code then exposes these tools under the `mcp__biotech__*` namespace:
+#   search_literature, search_literature_by_protein, resolve_protein,
+#   fetch_structure, run_nma, search_compounds_by_target, get_compound,
+#   get_approved_drugs_for_target, extract_mutations,
+#   cross_reference_mutations, run_research
+```
+
+Project-local slash commands in `.claude/commands/` provide ready-made
+workflows:
+
+- `/research "<question>"` — full pipeline + synthesis
+- `/analyze-pdb <pdb_id> [...]` — NMA dynamics summary
+- `/find-mutations "<protein>"` — literature-reported mutations mapped to structure
 
 ## Example Queries
 

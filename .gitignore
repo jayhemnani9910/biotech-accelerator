@@ -54,3 +54,6 @@ Thumbs.db
 
 # Local session transcripts
 chats.md
+
+# Per-machine Claude Code settings (project-level .claude/settings.json is fine)
+.claude/settings.local.json

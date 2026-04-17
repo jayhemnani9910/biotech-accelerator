@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "biotech": {
+      "command": "biotech-mcp",
+      "args": [],
+      "env": {
+        "PUBMED_EMAIL": "you@example.com"
+      }
+    }
+  }
+}
