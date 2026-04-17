@@ -1,8 +1,8 @@
 {
   "mcpServers": {
     "biotech": {
-      "command": "biotech-mcp",
-      "args": [],
+      "command": "uv",
+      "args": ["run", "--project", ".", "biotech-mcp"],
       "env": {
         "PUBMED_EMAIL": "you@example.com"
       }

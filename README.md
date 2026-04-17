@@ -67,18 +67,27 @@ Final Report with citations, structural insights, and next steps
 
 ## Installation
 
+With [uv](https://github.com/astral-sh/uv) (recommended — handles venv creation):
+
 ```bash
-# Clone the repo
 git clone https://github.com/jayhemnani9910/biotech-accelerator.git
 cd biotech-accelerator
+uv venv
+uv pip install -e ".[dev]"
+```
 
-# Create virtual environment
-python -m venv .venv
+With stdlib `venv` + `pip`:
+
+```bash
+git clone https://github.com/jayhemnani9910/biotech-accelerator.git
+cd biotech-accelerator
+python3 -m venv .venv
 source .venv/bin/activate
-
-# Install dependencies
 pip install -e ".[dev]"
 ```
+
+> On Debian/Ubuntu you may see `externally-managed-environment` if you try
+> `pip install -e .` against system Python. Always install inside a venv.
 
 ### Dependencies
 - Python 3.10+
@@ -150,11 +159,12 @@ pytest -m integration
 
 The repository ships an MCP server so Claude Code (or any MCP-compatible
 client) can call the biotech pipeline as native tools. The server is
-registered via `.mcp.json` at the repo root; point Claude Code at it:
+registered via `.mcp.json` at the repo root, which launches the server
+through `uv run biotech-mcp` — no manual venv activation required:
 
 ```bash
-# Install the package (includes the `biotech-mcp` entry point)
-pip install -e .
+# Install the package first (see Installation above)
+uv pip install -e .
 
 # Launch Claude Code from the repo root — it picks up .mcp.json automatically.
 # Claude Code then exposes these tools under the `mcp__biotech__*` namespace:
@@ -163,6 +173,9 @@ pip install -e .
 #   get_approved_drugs_for_target, extract_mutations,
 #   cross_reference_mutations, run_research
 ```
+
+If you prefer a plain venv (no uv), edit `.mcp.json` to point `command` at
+your venv's `biotech-mcp` script (e.g. `./.venv/bin/biotech-mcp`).
 
 Project-local slash commands in `.claude/commands/` provide ready-made
 workflows:
