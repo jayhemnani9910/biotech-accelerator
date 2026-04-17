@@ -1,0 +1,285 @@
+title: |md
+  # LangGraph Pipeline — Data Flow
+| {
+  near: top-center
+  style: { font-size: 26; bold: true }
+}
+
+direction: down
+
+# ──────────────────────────────────────────────────
+# INPUT
+# ──────────────────────────────────────────────────
+
+query: |md
+  **User Query**
+  "What mutations stabilize lysozyme?
+  Analyze PDB 1LYZ"
+| {
+  shape: page
+  style: {
+    fill: "#1a1a2e"
+    stroke: "#e94560"
+    font-color: "#fff"
+    border-radius: 8
+    font-size: 14
+  }
+}
+
+# ──────────────────────────────────────────────────
+# STAGE 1: Parse
+# ──────────────────────────────────────────────────
+
+parse: |md
+  **1. Parse Query**
+  Extract PDB IDs via regex
+  Match protein names from dictionary
+  Detect drug keywords
+| {
+  shape: rectangle
+  style: {
+    fill: "#0d1b2a"
+    stroke: "#48cae4"
+    font-color: "#fff"
+    border-radius: 8
+    font-size: 13
+  }
+}
+
+parse_out: |md
+  `pdb_ids: ["1LYZ"]`
+  `protein_names: ["lysozyme"]`
+  `uniprot_ids: ["P00698"]`
+  `has_drug_query: false`
+| {
+  shape: document
+  style: {
+    fill: "#1b263b"
+    stroke: "#90e0ef"
+    font-color: "#caf0f8"
+    font-size: 12
+  }
+}
+
+# ──────────────────────────────────────────────────
+# STAGE 2: Resolve
+# ──────────────────────────────────────────────────
+
+resolve: |md
+  **2. Resolve Proteins**
+  UniProt search by name
+  Get PDB structure mappings
+  Deduplicate all IDs
+| {
+  shape: rectangle
+  style: {
+    fill: "#0d1b2a"
+    stroke: "#48cae4"
+    font-color: "#fff"
+    border-radius: 8
+    font-size: 13
+  }
+}
+
+# ──────────────────────────────────────────────────
+# PARALLEL STAGES (side by side)
+# ──────────────────────────────────────────────────
+
+parallel: "" {
+  style: {
+    fill: transparent
+    stroke: transparent
+  }
+
+  lit: |md
+    **3. Literature Search**
+    PubMed general query
+    Protein-specific search
+    Score relevance
+    Extract key findings
+  | {
+    shape: rectangle
+    style: {
+      fill: "#240046"
+      stroke: "#b388ff"
+      font-color: "#fff"
+      border-radius: 8
+      font-size: 13
+    }
+  }
+
+  struct: |md
+    **4. Structure Analysis**
+    Fetch PDB file from RCSB
+    Run NMA (100 modes)
+    Identify flex/rigid regions
+    Find hinge residues
+  | {
+    shape: rectangle
+    style: {
+      fill: "#3d0066"
+      stroke: "#e91e9c"
+      font-color: "#fff"
+      border-radius: 8
+      font-size: 13
+    }
+  }
+
+  drug: |md
+    **5. Drug Discovery**
+    *(skipped if no drug keywords)*
+    Search ChEMBL by target
+    Classify potency
+    Find approved drugs
+  | {
+    shape: rectangle
+    style: {
+      fill: "#1b4332"
+      stroke: "#52b788"
+      font-color: "#fff"
+      border-radius: 8
+      font-size: 13
+    }
+  }
+}
+
+# ──────────────────────────────────────────────────
+# RESULTS
+# ──────────────────────────────────────────────────
+
+results: "" {
+  style: {
+    fill: transparent
+    stroke: transparent
+  }
+
+  lit_out: |md
+    15 papers found
+    5 mention stability
+    3 mention mutations
+  | {
+    shape: document
+    style: {
+      fill: "#3c096c"
+      stroke: "#c77dff"
+      font-color: "#e0aaff"
+      font-size: 12
+    }
+  }
+
+  struct_out: |md
+    Flexible: 44-49, 66-72
+    Rigid: 7-12, 22-40
+    Hinges: 45, 46, 47
+  | {
+    shape: document
+    style: {
+      fill: "#4a1942"
+      stroke: "#f48fb1"
+      font-color: "#f8bbd0"
+      font-size: 12
+    }
+  }
+
+  drug_out: |md
+    (skipped)
+    no drug keywords
+  | {
+    shape: document
+    style: {
+      fill: "#2d3b2d"
+      stroke: "#52b788"
+      font-color: "#95d5b2"
+      font-size: 12
+    }
+  }
+}
+
+# ──────────────────────────────────────────────────
+# STAGE 6: Synthesis
+# ──────────────────────────────────────────────────
+
+synth: |md
+  **6. Synthesis + Experiment Suggestions**
+  Combine literature + structural evidence
+  Generate prioritized experiment plan
+  Build final research report
+| {
+  shape: rectangle
+  style: {
+    fill: "#264653"
+    stroke: "#e9c46a"
+    font-color: "#fff"
+    border-radius: 8
+    font-size: 13
+  }
+}
+
+# ──────────────────────────────────────────────────
+# OUTPUT
+# ──────────────────────────────────────────────────
+
+report: |md
+  **Final Research Report**
+  1. Literature Evidence (15 papers)
+  2. Structure Analysis (1LYZ NMA)
+  3. Synthesis & Key Findings
+  4. Suggested Experiments (4 prioritized)
+| {
+  shape: page
+  style: {
+    fill: "#1a1a2e"
+    stroke: "#e9c46a"
+    font-color: "#fff"
+    border-radius: 8
+    font-size: 14
+    bold: true
+  }
+}
+
+# ──────────────────────────────────────────────────
+# FLOW
+# ──────────────────────────────────────────────────
+
+query -> parse: input {
+  style: { stroke: "#e94560"; stroke-width: 3 }
+}
+parse -> parse_out {
+  style: { stroke: "#90e0ef"; stroke-dash: 3 }
+}
+parse_out -> resolve {
+  style: { stroke: "#48cae4"; stroke-width: 2 }
+}
+resolve -> parallel.lit {
+  style: { stroke: "#b388ff"; stroke-width: 2 }
+}
+resolve -> parallel.struct {
+  style: { stroke: "#e91e9c"; stroke-width: 2 }
+}
+resolve -> parallel.drug {
+  style: { stroke: "#52b788"; stroke-width: 2 }
+}
+
+parallel.lit -> results.lit_out {
+  style: { stroke: "#c77dff"; stroke-dash: 3 }
+}
+parallel.struct -> results.struct_out {
+  style: { stroke: "#f48fb1"; stroke-dash: 3 }
+}
+parallel.drug -> results.drug_out {
+  style: { stroke: "#52b788"; stroke-dash: 3 }
+}
+
+results.lit_out -> synth {
+  style: { stroke: "#c77dff"; stroke-width: 2 }
+}
+results.struct_out -> synth {
+  style: { stroke: "#f48fb1"; stroke-width: 2 }
+}
+results.drug_out -> synth {
+  style: { stroke: "#52b788"; stroke-width: 2 }
+}
+
+synth -> report: final_report {
+  style: { stroke: "#e9c46a"; stroke-width: 3 }
+}

@@ -1,0 +1,335 @@
+title: |md
+  # Biotech Research Accelerator — System Architecture
+| {
+  near: top-center
+  style: {
+    font-size: 28
+    bold: true
+  }
+}
+
+direction: down
+
+# ──────────────────────────────────────────────────
+# LAYER 1: Entry Points
+# ──────────────────────────────────────────────────
+
+entry: Entry Points {
+  style: {
+    fill: "#1a1a2e"
+    stroke: "#e94560"
+    border-radius: 12
+    font-color: "#eee"
+  }
+
+  cli: "CLI (main.py)" {
+    shape: rectangle
+    style: {
+      fill: "#16213e"
+      stroke: "#e94560"
+      font-color: "#fff"
+      border-radius: 8
+    }
+  }
+
+  api: "run_research(query)" {
+    shape: rectangle
+    style: {
+      fill: "#16213e"
+      stroke: "#e94560"
+      font-color: "#fff"
+      border-radius: 8
+    }
+  }
+
+  cli_flags: |md
+    `--pdb 1LYZ` → direct structure analysis
+    `"query text"` → full pipeline
+  | {
+    style: {
+      font-size: 13
+      font-color: "#aaa"
+    }
+  }
+}
+
+# ──────────────────────────────────────────────────
+# LAYER 2: LangGraph Pipeline
+# ──────────────────────────────────────────────────
+
+pipeline: LangGraph Pipeline {
+  style: {
+    fill: "#0f3460"
+    stroke: "#00b4d8"
+    border-radius: 12
+    font-color: "#eee"
+  }
+
+  parse: "1. Parse Query" {
+    shape: rectangle
+    style: { fill: "#1a1a40"; stroke: "#48cae4"; font-color: "#fff"; border-radius: 6 }
+  }
+  resolve: "2. Resolve Proteins" {
+    shape: rectangle
+    style: { fill: "#1a1a40"; stroke: "#48cae4"; font-color: "#fff"; border-radius: 6 }
+  }
+  literature: "3. Literature Search" {
+    shape: rectangle
+    style: { fill: "#1a1a40"; stroke: "#48cae4"; font-color: "#fff"; border-radius: 6 }
+  }
+  structure: "4. Structure Analysis" {
+    shape: rectangle
+    style: { fill: "#1a1a40"; stroke: "#48cae4"; font-color: "#fff"; border-radius: 6 }
+  }
+  drugs: "5. Drug Discovery" {
+    shape: rectangle
+    style: { fill: "#1a1a40"; stroke: "#48cae4"; font-color: "#fff"; border-radius: 6 }
+  }
+  synthesis: "6. Synthesis + Report" {
+    shape: rectangle
+    style: { fill: "#1a1a40"; stroke: "#48cae4"; font-color: "#fff"; border-radius: 6 }
+  }
+
+  parse -> resolve -> literature -> structure -> drugs -> synthesis {
+    style: {
+      stroke: "#90e0ef"
+      stroke-width: 2
+    }
+  }
+}
+
+# ──────────────────────────────────────────────────
+# LAYER 3: AI Agents
+# ──────────────────────────────────────────────────
+
+agents: AI Agents {
+  style: {
+    fill: "#2d1b69"
+    stroke: "#b388ff"
+    border-radius: 12
+    font-color: "#eee"
+  }
+
+  bio_lit: "BioLiteratureAgent" {
+    shape: rectangle
+    style: { fill: "#311b92"; stroke: "#b388ff"; font-color: "#fff"; border-radius: 6 }
+  }
+  struct_agent: "StructureAnalystAgent" {
+    shape: rectangle
+    style: { fill: "#311b92"; stroke: "#b388ff"; font-color: "#fff"; border-radius: 6 }
+  }
+  drug_agent: "DrugBindingAgent" {
+    shape: rectangle
+    style: { fill: "#311b92"; stroke: "#b388ff"; font-color: "#fff"; border-radius: 6 }
+  }
+  synth_agent: "SynthesisAgent" {
+    shape: rectangle
+    style: { fill: "#311b92"; stroke: "#b388ff"; font-color: "#fff"; border-radius: 6 }
+  }
+  exp_suggest: "ExperimentSuggester" {
+    shape: rectangle
+    style: { fill: "#311b92"; stroke: "#b388ff"; font-color: "#fff"; border-radius: 6 }
+  }
+
+  synth_agent -> exp_suggest: generates {
+    style: { stroke: "#ce93d8"; stroke-dash: 3 }
+  }
+}
+
+# ──────────────────────────────────────────────────
+# LAYER 4: Adapters (API Clients)
+# ──────────────────────────────────────────────────
+
+adapters: Adapters {
+  style: {
+    fill: "#1b4332"
+    stroke: "#52b788"
+    border-radius: 12
+    font-color: "#eee"
+  }
+
+  base: "BaseAdapter" {
+    shape: rectangle
+    style: { fill: "#2d6a4f"; stroke: "#95d5b2"; font-color: "#fff"; border-radius: 6 }
+  }
+
+  pdb: "PDBAdapter" {
+    shape: rectangle
+    style: { fill: "#1b4332"; stroke: "#52b788"; font-color: "#fff"; border-radius: 6 }
+  }
+  uniprot: "UniProtAdapter" {
+    shape: rectangle
+    style: { fill: "#1b4332"; stroke: "#52b788"; font-color: "#fff"; border-radius: 6 }
+  }
+  pubmed: "PubMedAdapter" {
+    shape: rectangle
+    style: { fill: "#1b4332"; stroke: "#52b788"; font-color: "#fff"; border-radius: 6 }
+  }
+  chembl: "ChEMBLAdapter" {
+    shape: rectangle
+    style: { fill: "#1b4332"; stroke: "#52b788"; font-color: "#fff"; border-radius: 6 }
+  }
+
+  base -> pdb: inherits {
+    style: { stroke: "#95d5b2"; stroke-dash: 3 }
+  }
+  base -> uniprot: inherits {
+    style: { stroke: "#95d5b2"; stroke-dash: 3 }
+  }
+  base -> pubmed: inherits {
+    style: { stroke: "#95d5b2"; stroke-dash: 3 }
+  }
+  base -> chembl: inherits {
+    style: { stroke: "#95d5b2"; stroke-dash: 3 }
+  }
+}
+
+# ──────────────────────────────────────────────────
+# LAYER 5: Computational Analysis
+# ──────────────────────────────────────────────────
+
+analysis: Computational Analysis {
+  style: {
+    fill: "#4a1942"
+    stroke: "#e91e9c"
+    border-radius: 12
+    font-color: "#eee"
+  }
+
+  nma: "NMAAnalyzer (ProDy)" {
+    shape: rectangle
+    style: { fill: "#6a1b4d"; stroke: "#f48fb1"; font-color: "#fff"; border-radius: 6 }
+  }
+
+  nma_out: |md
+    Eigenvalues, Fluctuations
+    Flexible/Rigid Regions
+    Hinge Residues, Entropy
+  | {
+    style: { font-size: 12; font-color: "#ddd" }
+  }
+}
+
+# ──────────────────────────────────────────────────
+# LAYER 6: Data Models
+# ──────────────────────────────────────────────────
+
+models: Data Models {
+  style: {
+    fill: "#3d2c1e"
+    stroke: "#f4a261"
+    border-radius: 12
+    font-color: "#eee"
+  }
+
+  domain: "Domain Models" {
+    shape: rectangle
+    style: { fill: "#5c3d2e"; stroke: "#e9c46a"; font-color: "#fff"; border-radius: 6 }
+  }
+  ports: "Port Models" {
+    shape: rectangle
+    style: { fill: "#5c3d2e"; stroke: "#e9c46a"; font-color: "#fff"; border-radius: 6 }
+  }
+
+  domain_detail: |md
+    PDBStructure, ProteinInfo
+    NMAResult, FlexibilityProfile
+    CompoundInfo, BindingPrediction
+  | {
+    style: { font-size: 12; font-color: "#ddd" }
+  }
+
+  ports_detail: |md
+    SequenceInfo, Citation
+    LiteratureSearchResult
+    BioactivityData
+  | {
+    style: { font-size: 12; font-color: "#ddd" }
+  }
+}
+
+# ──────────────────────────────────────────────────
+# EXTERNAL SERVICES
+# ──────────────────────────────────────────────────
+
+external: External APIs {
+  style: {
+    fill: "#333"
+    stroke: "#888"
+    border-radius: 12
+    font-color: "#ccc"
+  }
+
+  rcsb: "RCSB PDB" {
+    shape: cloud
+    style: { fill: "#444"; stroke: "#52b788"; font-color: "#fff" }
+  }
+  uniprot_api: "UniProt REST" {
+    shape: cloud
+    style: { fill: "#444"; stroke: "#52b788"; font-color: "#fff" }
+  }
+  ncbi: "NCBI PubMed" {
+    shape: cloud
+    style: { fill: "#444"; stroke: "#52b788"; font-color: "#fff" }
+  }
+  chembl_api: "ChEMBL API" {
+    shape: cloud
+    style: { fill: "#444"; stroke: "#52b788"; font-color: "#fff" }
+  }
+}
+
+# ──────────────────────────────────────────────────
+# CONNECTIONS BETWEEN LAYERS
+# ──────────────────────────────────────────────────
+
+entry.cli -> pipeline.parse: query {
+  style: { stroke: "#e94560"; stroke-width: 2 }
+}
+entry.api -> pipeline.parse: query {
+  style: { stroke: "#e94560"; stroke-width: 2 }
+}
+
+pipeline.literature -> agents.bio_lit {
+  style: { stroke: "#b388ff"; stroke-width: 2 }
+}
+pipeline.structure -> agents.struct_agent {
+  style: { stroke: "#b388ff"; stroke-width: 2 }
+}
+pipeline.drugs -> agents.drug_agent {
+  style: { stroke: "#b388ff"; stroke-width: 2 }
+}
+pipeline.synthesis -> agents.synth_agent {
+  style: { stroke: "#b388ff"; stroke-width: 2 }
+}
+pipeline.resolve -> adapters.uniprot: UniProt lookup {
+  style: { stroke: "#52b788"; stroke-width: 2 }
+}
+
+agents.bio_lit -> adapters.pubmed {
+  style: { stroke: "#52b788"; stroke-width: 2 }
+}
+agents.bio_lit -> adapters.uniprot {
+  style: { stroke: "#52b788"; stroke-width: 2 }
+}
+agents.struct_agent -> adapters.pdb {
+  style: { stroke: "#52b788"; stroke-width: 2 }
+}
+agents.struct_agent -> analysis.nma {
+  style: { stroke: "#e91e9c"; stroke-width: 2 }
+}
+agents.drug_agent -> adapters.chembl {
+  style: { stroke: "#52b788"; stroke-width: 2 }
+}
+
+adapters.pdb -> external.rcsb: HTTPS {
+  style: { stroke: "#666"; stroke-dash: 5 }
+}
+adapters.uniprot -> external.uniprot_api: HTTPS {
+  style: { stroke: "#666"; stroke-dash: 5 }
+}
+adapters.pubmed -> external.ncbi: HTTPS {
+  style: { stroke: "#666"; stroke-dash: 5 }
+}
+adapters.chembl -> external.chembl_api: HTTPS {
+  style: { stroke: "#666"; stroke-dash: 5 }
+}

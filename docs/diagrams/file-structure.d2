@@ -1,0 +1,295 @@
+title: |md
+  # Project File Structure & Dependencies
+| {
+  near: top-center
+  style: { font-size: 26; bold: true }
+}
+
+direction: down
+
+# ──────────────────────────────────────────────────
+# MAIN ENTRY
+# ──────────────────────────────────────────────────
+
+main: "main.py" {
+  shape: rectangle
+  style: {
+    fill: "#1a1a2e"
+    stroke: "#e94560"
+    font-color: "#fff"
+    border-radius: 8
+    font-size: 16
+    bold: true
+  }
+}
+
+# ──────────────────────────────────────────────────
+# GRAPH
+# ──────────────────────────────────────────────────
+
+graph: "graph/" {
+  style: {
+    fill: "#0f3460"
+    stroke: "#00b4d8"
+    border-radius: 10
+    font-color: "#eee"
+  }
+
+  biotech_graph: "biotech_graph.py" {
+    shape: rectangle
+    style: { fill: "#1a1a40"; stroke: "#48cae4"; font-color: "#fff"; border-radius: 6 }
+  }
+
+  state: |md
+    `BiotechState` TypedDict
+    `build_biotech_graph()`
+    `run_research(query)`
+    6 node functions
+  | {
+    style: { font-size: 12; font-color: "#aaa" }
+  }
+}
+
+# ──────────────────────────────────────────────────
+# AGENTS
+# ──────────────────────────────────────────────────
+
+agents: "agents/nodes/" {
+  style: {
+    fill: "#2d1b69"
+    stroke: "#b388ff"
+    border-radius: 10
+    font-color: "#eee"
+  }
+
+  struct_analyst: "structure_analyst.py" {
+    shape: rectangle
+    style: { fill: "#311b92"; stroke: "#b388ff"; font-color: "#fff"; border-radius: 6 }
+  }
+  bio_lit: "bio_literature.py" {
+    shape: rectangle
+    style: { fill: "#311b92"; stroke: "#b388ff"; font-color: "#fff"; border-radius: 6 }
+  }
+  drug_bind: "drug_binding.py" {
+    shape: rectangle
+    style: { fill: "#311b92"; stroke: "#b388ff"; font-color: "#fff"; border-radius: 6 }
+  }
+  synthesis: "synthesis.py" {
+    shape: rectangle
+    style: { fill: "#311b92"; stroke: "#b388ff"; font-color: "#fff"; border-radius: 6 }
+  }
+  exp_suggest: "experiment_suggester.py" {
+    shape: rectangle
+    style: { fill: "#311b92"; stroke: "#b388ff"; font-color: "#fff"; border-radius: 6 }
+  }
+}
+
+# ──────────────────────────────────────────────────
+# ADAPTERS
+# ──────────────────────────────────────────────────
+
+adapters: "adapters/" {
+  style: {
+    fill: "#1b4332"
+    stroke: "#52b788"
+    border-radius: 10
+    font-color: "#eee"
+  }
+
+  base: "base.py" {
+    shape: rectangle
+    style: { fill: "#2d6a4f"; stroke: "#95d5b2"; font-color: "#fff"; border-radius: 6; bold: true }
+  }
+  pdb: "pdb_adapter.py" {
+    shape: rectangle
+    style: { fill: "#1b4332"; stroke: "#52b788"; font-color: "#fff"; border-radius: 6 }
+  }
+  uniprot: "uniprot_adapter.py" {
+    shape: rectangle
+    style: { fill: "#1b4332"; stroke: "#52b788"; font-color: "#fff"; border-radius: 6 }
+  }
+  pubmed: "pubmed_adapter.py" {
+    shape: rectangle
+    style: { fill: "#1b4332"; stroke: "#52b788"; font-color: "#fff"; border-radius: 6 }
+  }
+  chembl: "chembl_adapter.py" {
+    shape: rectangle
+    style: { fill: "#1b4332"; stroke: "#52b788"; font-color: "#fff"; border-radius: 6 }
+  }
+
+  base -> pdb {
+    style: { stroke: "#95d5b2"; stroke-dash: 3 }
+  }
+  base -> uniprot {
+    style: { stroke: "#95d5b2"; stroke-dash: 3 }
+  }
+  base -> pubmed {
+    style: { stroke: "#95d5b2"; stroke-dash: 3 }
+  }
+  base -> chembl {
+    style: { stroke: "#95d5b2"; stroke-dash: 3 }
+  }
+}
+
+# ──────────────────────────────────────────────────
+# ANALYSIS
+# ──────────────────────────────────────────────────
+
+analysis: "analysis/" {
+  style: {
+    fill: "#4a1942"
+    stroke: "#e91e9c"
+    border-radius: 10
+    font-color: "#eee"
+  }
+
+  nma: "nma_wrapper.py" {
+    shape: rectangle
+    style: { fill: "#6a1b4d"; stroke: "#f48fb1"; font-color: "#fff"; border-radius: 6 }
+  }
+
+  nma_desc: |md
+    ANM via ProDy
+    Fluctuations, Entropy
+    Flexible/Rigid regions
+  | {
+    style: { font-size: 11; font-color: "#ccc" }
+  }
+}
+
+# ──────────────────────────────────────────────────
+# DOMAIN & PORTS
+# ──────────────────────────────────────────────────
+
+domain: "domain/" {
+  style: {
+    fill: "#3d2c1e"
+    stroke: "#f4a261"
+    border-radius: 10
+    font-color: "#eee"
+  }
+
+  protein: "protein_models.py" {
+    shape: rectangle
+    style: { fill: "#5c3d2e"; stroke: "#e9c46a"; font-color: "#fff"; border-radius: 6 }
+  }
+  compound: "compound_models.py" {
+    shape: rectangle
+    style: { fill: "#5c3d2e"; stroke: "#e9c46a"; font-color: "#fff"; border-radius: 6 }
+  }
+}
+
+ports: "ports/" {
+  style: {
+    fill: "#3d2c1e"
+    stroke: "#f4a261"
+    border-radius: 10
+    font-color: "#eee"
+  }
+
+  seq: "sequence.py" {
+    shape: rectangle
+    style: { fill: "#5c3d2e"; stroke: "#e9c46a"; font-color: "#fff"; border-radius: 6 }
+  }
+  lit: "literature.py" {
+    shape: rectangle
+    style: { fill: "#5c3d2e"; stroke: "#e9c46a"; font-color: "#fff"; border-radius: 6 }
+  }
+  comp: "compound.py" {
+    shape: rectangle
+    style: { fill: "#5c3d2e"; stroke: "#e9c46a"; font-color: "#fff"; border-radius: 6 }
+  }
+  struct: "structure.py" {
+    shape: rectangle
+    style: { fill: "#5c3d2e"; stroke: "#e9c46a"; font-color: "#fff"; border-radius: 6 }
+  }
+}
+
+# ──────────────────────────────────────────────────
+# CONFIG & UTILS
+# ──────────────────────────────────────────────────
+
+config: "config/settings.py" {
+  shape: rectangle
+  style: {
+    fill: "#333"
+    stroke: "#888"
+    font-color: "#ccc"
+    border-radius: 6
+  }
+}
+
+utils: "utils/cache.py" {
+  shape: rectangle
+  style: {
+    fill: "#333"
+    stroke: "#888"
+    font-color: "#ccc"
+    border-radius: 6
+  }
+}
+
+# ──────────────────────────────────────────────────
+# DEPENDENCY ARROWS
+# ──────────────────────────────────────────────────
+
+main -> graph.biotech_graph: imports {
+  style: { stroke: "#e94560"; stroke-width: 2 }
+}
+main -> agents.struct_analyst: imports {
+  style: { stroke: "#e94560"; stroke-width: 2 }
+}
+
+graph.biotech_graph -> agents.struct_analyst {
+  style: { stroke: "#b388ff"; stroke-width: 2 }
+}
+graph.biotech_graph -> agents.bio_lit {
+  style: { stroke: "#b388ff"; stroke-width: 2 }
+}
+graph.biotech_graph -> agents.drug_bind {
+  style: { stroke: "#b388ff"; stroke-width: 2 }
+}
+graph.biotech_graph -> agents.synthesis {
+  style: { stroke: "#b388ff"; stroke-width: 2 }
+}
+
+agents.struct_analyst -> adapters.pdb {
+  style: { stroke: "#52b788"; stroke-width: 2 }
+}
+agents.struct_analyst -> analysis.nma {
+  style: { stroke: "#e91e9c"; stroke-width: 2 }
+}
+agents.bio_lit -> adapters.pubmed {
+  style: { stroke: "#52b788"; stroke-width: 2 }
+}
+agents.bio_lit -> adapters.uniprot {
+  style: { stroke: "#52b788"; stroke-width: 2 }
+}
+agents.drug_bind -> adapters.chembl {
+  style: { stroke: "#52b788"; stroke-width: 2 }
+}
+agents.synthesis -> agents.exp_suggest {
+  style: { stroke: "#ce93d8"; stroke-dash: 3 }
+}
+
+adapters.pdb -> domain.protein {
+  style: { stroke: "#f4a261"; stroke-width: 1 }
+}
+adapters.pdb -> ports.struct {
+  style: { stroke: "#f4a261"; stroke-width: 1 }
+}
+adapters.uniprot -> ports.seq {
+  style: { stroke: "#f4a261"; stroke-width: 1 }
+}
+adapters.pubmed -> ports.lit {
+  style: { stroke: "#f4a261"; stroke-width: 1 }
+}
+adapters.chembl -> domain.compound {
+  style: { stroke: "#f4a261"; stroke-width: 1 }
+}
+adapters.chembl -> ports.comp {
+  style: { stroke: "#f4a261"; stroke-width: 1 }
+}
+adapters.chembl -> utils {
+  style: { stroke: "#888"; stroke-dash: 5 }
+}
