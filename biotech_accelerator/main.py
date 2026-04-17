@@ -47,7 +47,8 @@ async def run_structure_analysis(pdb_id: str) -> None:
     if result.nma_result:
         nma = result.nma_result
         console.print(f"\n[dim]Computed {nma.n_modes} normal modes[/dim]")
-        console.print(f"[dim]Structure cached at: {result.structure.file_path}[/dim]")
+        if result.structure:
+            console.print(f"[dim]Structure cached at: {result.structure.file_path}[/dim]")
 
 
 async def run_query(query: str) -> None:
@@ -56,15 +57,18 @@ async def run_query(query: str) -> None:
 
     # For now, just do structure analysis if PDB ID detected
     agent = StructureAnalystAgent()
-    pdb_ids = agent.extract_pdb_ids(query)
+    try:
+        pdb_ids = agent.extract_pdb_ids(query)
 
-    if pdb_ids:
-        console.print(f"[dim]Found PDB IDs: {', '.join(pdb_ids)}[/dim]\n")
-        for pdb_id in pdb_ids:
-            await run_structure_analysis(pdb_id)
-    else:
-        console.print("[yellow]No PDB IDs found in query.[/yellow]")
-        console.print("Try: biotech 'Analyze flexibility of PDB 1LYZ'")
+        if pdb_ids:
+            console.print(f"[dim]Found PDB IDs: {', '.join(pdb_ids)}[/dim]\n")
+            for pdb_id in pdb_ids:
+                await run_structure_analysis(pdb_id)
+        else:
+            console.print("[yellow]No PDB IDs found in query.[/yellow]")
+            console.print("Try: biotech 'Analyze flexibility of PDB 1LYZ'")
+    finally:
+        await agent.close()
 
 
 def main():

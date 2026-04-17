@@ -96,6 +96,19 @@ docker build -t biotech-accelerator .
 docker run --rm -it --env-file .env biotech-accelerator
 ```
 
+## Configuration
+
+The current pipeline is deterministic and does not require an LLM API key. LLM-
+powered nodes are planned for a later iteration (see the project plan).
+
+| Variable | Required | Default | Purpose |
+|----------|----------|---------|---------|
+| `PUBMED_EMAIL` | recommended | `biotech-accelerator@example.com` | Contact email sent with NCBI PubMed requests; avoids rate-limit throttling. |
+| `PUBMED_API_KEY` | no | — | NCBI API key for higher PubMed rate limits. |
+| `PDB_CACHE_DIR` | no | `~/.biotech-accelerator/pdb_cache` | Local directory for cached PDB structure files. |
+
+UniProt, RCSB PDB, and ChEMBL require no API key.
+
 ## Usage
 
 ### Python API
@@ -119,11 +132,14 @@ asyncio.run(main())
 ### CLI
 
 ```bash
+# Run a query end-to-end
+biotech "Analyze flexibility of PDB 1LYZ"
+
+# Analyze one or more PDB IDs directly
+biotech --pdb 1LYZ 4HHB
+
 # Run integration tests (hits live APIs)
 pytest -m integration
-
-# Run examples
-python examples/run_examples.py
 ```
 
 ## Example Queries

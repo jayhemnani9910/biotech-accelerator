@@ -84,9 +84,6 @@ class SynthesisAgent:
         "val": "V",
     }
 
-    # Legacy alias for backward compatibility
-    AA_MAP = THREE_TO_ONE
-
     async def __call__(self, state: dict[str, Any]) -> dict[str, Any]:
         """
         LangGraph node entry point.
@@ -293,7 +290,7 @@ class SynthesisAgent:
         pdb_ids: list[str],
         mutations: list[MutationInfo],
         insights: list[MutationInsight],
-        drug_insights: list = None,
+        drug_insights: Optional[list] = None,
         experiment_suggestions: str = "",
         resolution_warning: str = "",
     ) -> str:

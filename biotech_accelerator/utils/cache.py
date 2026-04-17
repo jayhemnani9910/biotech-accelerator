@@ -47,6 +47,21 @@ class ResponseCache:
         safe_key = hashlib.md5(key.encode()).hexdigest()
         return self.cache_dir / f"{namespace}_{safe_key}.json"
 
+    @staticmethod
+    def _normalize_entry(cached: dict) -> tuple[float, Any]:
+        """Extract (expiration_timestamp, value) from a cached entry.
+
+        Supports both current format ({"value", "expiration"}) and a legacy
+        format ({"data", "expires_at"}) produced by earlier versions.
+        """
+        expiration = cached.get("expiration")
+        if expiration is None:
+            expiration = cached.get("expires_at", 0)
+        value = cached.get("value")
+        if value is None:
+            value = cached.get("data")
+        return float(expiration or 0), value
+
     def get(self, namespace: str, key: str) -> Optional[Any]:
         """
         Get cached value if it exists and hasn't expired.
@@ -66,21 +81,17 @@ class ResponseCache:
         try:
             with open(cache_path, "r") as f:
                 cached = json.load(f)
-
-            # Check expiration (support both old and new format)
-            expiration = cached.get("expiration") or cached.get("expires_at", 0)
-            if time.time() > expiration:
-                # Cache expired, remove it
-                cache_path.unlink(missing_ok=True)
-                return None
-
-            logger.debug(f"Cache hit: {namespace}:{key[:50]}")
-            # Support both old and new format
-            return cached.get("value") or cached.get("data")
-
-        except Exception as e:
-            logger.warning(f"Cache read error: {e}")
+        except (OSError, json.JSONDecodeError) as e:
+            logger.warning(f"Cache read error for {cache_path.name}: {e}")
             return None
+
+        expiration, value = self._normalize_entry(cached)
+        if time.time() > expiration:
+            cache_path.unlink(missing_ok=True)
+            return None
+
+        logger.debug(f"Cache hit: {namespace}:{key[:50]}")
+        return value
 
     def set(
         self,
@@ -109,19 +120,19 @@ class ResponseCache:
             "key": key,
         }
 
-        # Atomic write using temp file
+        # Atomic write via temp file within the same directory.
         try:
             fd, temp_path = tempfile.mkstemp(dir=self.cache_dir, suffix=".tmp")
             try:
                 with os.fdopen(fd, "w") as f:
                     json.dump(cache_data, f)
                 shutil.move(temp_path, cache_path)
-            except Exception:
+            except (OSError, TypeError) as e:
                 if os.path.exists(temp_path):
                     os.unlink(temp_path)
-                raise
-        except Exception as e:
-            logger.warning(f"Failed to write cache: {e}")
+                logger.warning(f"Failed to write cache {cache_path.name}: {e}")
+        except OSError as e:
+            logger.warning(f"Failed to create cache temp file: {e}")
 
     def invalidate(self, namespace: str, key: str) -> None:
         """Remove a cached value."""
@@ -161,13 +172,15 @@ class ResponseCache:
             try:
                 with open(cache_file, "r") as f:
                     cached = json.load(f)
-                # Support both old and new format
-                expiration = cached.get("expiration") or cached.get("expires_at", 0)
-                if time.time() <= expiration:
-                    valid_count += 1
-                else:
-                    expired_count += 1
-            except Exception:
+            except (OSError, json.JSONDecodeError) as e:
+                logger.debug(f"Treating unreadable cache {cache_file.name} as expired: {e}")
+                expired_count += 1
+                continue
+
+            expiration, _ = self._normalize_entry(cached)
+            if time.time() <= expiration:
+                valid_count += 1
+            else:
                 expired_count += 1
 
         return {

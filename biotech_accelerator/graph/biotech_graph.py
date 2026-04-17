@@ -14,6 +14,7 @@ import re
 from typing import Any, TypedDict
 
 from langgraph.graph import END, StateGraph
+from langgraph.graph.state import CompiledStateGraph
 
 from ..agents.nodes.bio_literature import BioLiteratureAgent
 from ..agents.nodes.drug_binding import DrugBindingAgent
@@ -21,6 +22,49 @@ from ..agents.nodes.structure_analyst import StructureAnalystAgent
 from ..agents.nodes.synthesis import SynthesisAgent
 
 logger = logging.getLogger(__name__)
+
+# Pre-compiled patterns
+_PDB_ID_PATTERN = re.compile(r"\b([0-9][A-Z0-9]{3})\b", re.IGNORECASE)
+_GENE_PATTERN = re.compile(r"\b([A-Z]{2,6})\b")
+
+_EXCLUDE_TERMS = {
+    "PDB",
+    "DNA",
+    "RNA",
+    "NMR",
+    "AND",
+    "THE",
+    "FOR",
+    "NOT",
+    "WITH",
+    "FROM",
+    "THAT",
+    "THIS",
+    "HAVE",
+    "BEEN",
+    "WERE",
+    "WHAT",
+    "HOW",
+    "WHY",
+    "CAN",
+    "ARE",
+    "WAS",
+    "HAS",
+    "HAD",
+    "WILL",
+    "STUDY",
+    "RESULTS",
+    "METHODS",
+    "DATA",
+    "ANALYSIS",
+    "RESEARCH",
+    "PROTEIN",
+    "GENE",
+    "CELL",
+    "HUMAN",
+    "MOUSE",
+    "RAT",
+}
 
 # Common protein name to UniProt ID mapping
 PROTEIN_NAME_MAP = {
@@ -79,6 +123,7 @@ class BiotechState(TypedDict, total=False):
     # Control
     current_phase: str
     error: str
+    resolution_warning: str
 
 
 async def parse_query_node(state: BiotechState) -> dict[str, Any]:
@@ -86,9 +131,8 @@ async def parse_query_node(state: BiotechState) -> dict[str, Any]:
     query = state.get("query", "")
     query_lower = query.lower()
 
-    # Use structure analyst to extract PDB IDs
-    agent = StructureAnalystAgent()
-    pdb_ids = agent.extract_pdb_ids(query)
+    # Extract PDB IDs via regex (no need to instantiate full agent)
+    pdb_ids = list(dict.fromkeys(m.upper() for m in _PDB_ID_PATTERN.findall(query)))
 
     # Extract protein names and map to UniProt IDs
     protein_names = []
@@ -102,51 +146,11 @@ async def parse_query_node(state: BiotechState) -> dict[str, Any]:
                 uniprot_ids.append(uniprot)
 
     # Also extract gene-like patterns (2-6 uppercase letters)
-    # Exclude common non-gene terms
-    EXCLUDE_TERMS = {
-        "PDB",
-        "DNA",
-        "RNA",
-        "NMR",
-        "AND",
-        "THE",
-        "FOR",
-        "NOT",
-        "WITH",
-        "FROM",
-        "THAT",
-        "THIS",
-        "HAVE",
-        "BEEN",
-        "WERE",
-        "WHAT",
-        "HOW",
-        "WHY",
-        "CAN",
-        "ARE",
-        "WAS",
-        "HAS",
-        "HAD",
-        "WILL",
-        "STUDY",
-        "RESULTS",
-        "METHODS",
-        "DATA",
-        "ANALYSIS",
-        "RESEARCH",
-        "PROTEIN",
-        "GENE",
-        "CELL",
-        "HUMAN",
-        "MOUSE",
-        "RAT",
-    }
-    gene_pattern = re.compile(r"\b([A-Z]{2,6})\b")
-    for match in gene_pattern.findall(query):
+    for match in _GENE_PATTERN.findall(query):
         # Don't add if it's a PDB ID, excluded term, or already in protein_names
         if (
             match not in pdb_ids
-            and match not in EXCLUDE_TERMS
+            and match not in _EXCLUDE_TERMS
             and match.lower() not in [p.lower() for p in protein_names]
         ):
             protein_names.append(match)
@@ -273,16 +277,16 @@ async def literature_node(state: BiotechState) -> dict[str, Any]:
 
     try:
         result = await agent(state)
-        await agent.close()
         return {**result, "current_phase": "literature_done"}
     except Exception as e:
         logger.error(f"Literature search failed: {e}")
-        await agent.close()
         return {
             "literature_summary": f"Literature search failed: {e}",
             "literature_count": 0,
             "current_phase": "literature_done",
         }
+    finally:
+        await agent.close()
 
 
 async def structure_node(state: BiotechState) -> dict[str, Any]:
@@ -310,6 +314,8 @@ async def structure_node(state: BiotechState) -> dict[str, Any]:
             "structure_summary": f"Structure analysis failed: {e}",
             "current_phase": "structure_done",
         }
+    finally:
+        await agent.close()
 
 
 async def drug_node(state: BiotechState) -> dict[str, Any]:
@@ -329,15 +335,15 @@ async def drug_node(state: BiotechState) -> dict[str, Any]:
 
     try:
         result = await agent(state)
-        await agent.close()
         return result
     except Exception as e:
         logger.error(f"Drug analysis failed: {e}")
-        await agent.close()
         return {
             "drug_summary": f"Drug analysis failed: {e}",
             "current_phase": "drugs_done",
         }
+    finally:
+        await agent.close()
 
 
 async def synthesis_node(state: BiotechState) -> dict[str, Any]:
@@ -368,7 +374,7 @@ async def synthesis_node(state: BiotechState) -> dict[str, Any]:
         }
 
 
-def build_biotech_graph() -> StateGraph:
+def build_biotech_graph() -> CompiledStateGraph:
     """
     Build the biotech research LangGraph.
 

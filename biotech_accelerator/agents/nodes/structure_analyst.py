@@ -7,7 +7,7 @@ understand protein dynamics and flexibility.
 
 import logging
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Optional
 
 from ...adapters.pdb_adapter import PDBAdapter
@@ -25,16 +25,6 @@ class StructureAnalysisResult:
     structure: PDBStructure
     nma_result: Optional[NMAResult] = None
     summary: str = ""
-    error: Optional[str] = None
-
-
-@dataclass
-class StructureAnalystState:
-    """State for structure analyst agent."""
-
-    query: str = ""
-    pdb_ids: list[str] = field(default_factory=list)
-    analysis_results: list[StructureAnalysisResult] = field(default_factory=list)
     error: Optional[str] = None
 
 
@@ -77,10 +67,11 @@ class StructureAnalystAgent:
         Returns:
             Updated state with structure analysis
         """
-        query = state.get("query", "") or state.get("root_query", "")
-
-        # Extract PDB IDs from query
-        pdb_ids = self.extract_pdb_ids(query)
+        # Use PDB IDs from state if available, otherwise extract from query
+        pdb_ids = state.get("pdb_ids", [])
+        if not pdb_ids:
+            query = state.get("query", "") or state.get("root_query", "")
+            pdb_ids = self.extract_pdb_ids(query)
 
         if not pdb_ids:
             logger.warning("No PDB IDs found in query")
@@ -222,6 +213,10 @@ class StructureAnalystAgent:
 
         return "\n".join(parts)
 
+    async def close(self):
+        """Close adapters."""
+        await self.pdb_adapter.close()
+
 
 # Standalone function for simpler usage
 async def analyze_protein_structure(pdb_id: str) -> StructureAnalysisResult:
@@ -235,4 +230,7 @@ async def analyze_protein_structure(pdb_id: str) -> StructureAnalysisResult:
         StructureAnalysisResult
     """
     agent = StructureAnalystAgent()
-    return await agent.analyze_structure(pdb_id)
+    try:
+        return await agent.analyze_structure(pdb_id)
+    finally:
+        await agent.close()
