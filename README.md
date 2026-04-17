@@ -140,20 +140,28 @@ asyncio.run(main())
 
 ### CLI
 
+The `biotech` entry point lives in the venv's `bin/`, so unless you have
+the venv activated you'll get `command not found`. Two ways around that:
+
 ```bash
-# Run the full pipeline end-to-end
+# Activate the venv first
+source .venv/bin/activate
 biotech "What mutations stabilize lysozyme?"
-
-# Machine-readable JSON (ideal for piping into coding agents)
 biotech "Find EGFR inhibitors" --json
-
-# Analyze one or more PDB IDs directly
 biotech --pdb 1LYZ 4HHB
 biotech --pdb 1LYZ --json
 
+# Or invoke without activation via uv (or use ./.venv/bin/biotech)
+uv run biotech "Analyze flexibility of PDB 1LYZ" --json
+uv run biotech --pdb 1LYZ 4HHB
+
 # Run integration tests (hits live APIs)
-pytest -m integration
+uv run pytest -m integration
 ```
+
+If neither `biotech` nor `uv` is available (e.g. a lightweight sandbox),
+`python3 -m biotech_accelerator.main …` works from the repo root without
+any install at all.
 
 ### Use with Claude Code (MCP)
 
