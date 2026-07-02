@@ -182,3 +182,49 @@ async def test_parse_query_node_empty_query():
     assert result["pdb_ids"] == []
     assert result["protein_names"] == []
     assert result["has_drug_query"] is False
+
+
+# --- ChEMBLAdapter._select_best_target -------------------------------------
+
+
+def test_select_best_target_prefers_single_protein_human():
+    from biotech_accelerator.adapters.chembl_adapter import ChEMBLAdapter
+
+    # Mirrors ChEMBL's actual score order for "EGFR": PPI complexes and a
+    # mouse single-protein rank above canonical human EGFR (CHEMBL203).
+    targets = [
+        {
+            "target_chembl_id": "CHEMBL4523747",
+            "target_type": "PROTEIN-PROTEIN INTERACTION",
+            "organism": "Homo sapiens",
+        },
+        {
+            "target_chembl_id": "CHEMBL3608",
+            "target_type": "SINGLE PROTEIN",
+            "organism": "Mus musculus",
+        },
+        {
+            "target_chembl_id": "CHEMBL203",
+            "target_type": "SINGLE PROTEIN",
+            "organism": "Homo sapiens",
+        },
+    ]
+    best = ChEMBLAdapter._select_best_target(targets)
+    assert best["target_chembl_id"] == "CHEMBL203"
+
+
+def test_select_best_target_falls_back_to_first_when_no_single_protein():
+    from biotech_accelerator.adapters.chembl_adapter import ChEMBLAdapter
+
+    targets = [
+        {"target_chembl_id": "A", "target_type": "PROTEIN FAMILY", "organism": "Homo sapiens"},
+        {"target_chembl_id": "B", "target_type": "PROTEIN COMPLEX", "organism": "Homo sapiens"},
+    ]
+    # Stable sort preserves ChEMBL's own ranking within the same priority.
+    assert ChEMBLAdapter._select_best_target(targets)["target_chembl_id"] == "A"
+
+
+def test_select_best_target_empty_returns_none():
+    from biotech_accelerator.adapters.chembl_adapter import ChEMBLAdapter
+
+    assert ChEMBLAdapter._select_best_target([]) is None

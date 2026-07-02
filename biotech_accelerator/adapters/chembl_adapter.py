@@ -128,6 +128,33 @@ class ChEMBLAdapter(BaseAdapter):
         results.sort(key=lambda x: x.activity_value)
         return results[:max_results]
 
+    @staticmethod
+    def _select_best_target(targets: list[dict]) -> Optional[dict]:
+        """Pick the most useful target from ChEMBL search results.
+
+        ChEMBL's text search ranks by string score, which for common names
+        (e.g. "EGFR") often floats protein-protein-interaction complexes or
+        protein families above the canonical single protein — and those carry
+        few or no bioactivity records. We prefer, in order:
+
+        1. SINGLE PROTEIN targets over any other target_type, and
+        2. Homo sapiens over other organisms,
+
+        while otherwise preserving ChEMBL's own ranking (stable sort).
+        """
+        if not targets:
+            return None
+
+        def rank(t: dict) -> tuple[int, int]:
+            target_type = (t.get("target_type") or "").upper()
+            organism = (t.get("organism") or "").lower()
+            type_priority = 0 if target_type == "SINGLE PROTEIN" else 1
+            organism_priority = 0 if organism == "homo sapiens" else 1
+            return (type_priority, organism_priority)
+
+        # Stable sort keeps ChEMBL's score order within each priority bucket.
+        return sorted(targets, key=rank)[0]
+
     async def _find_target(self, target_name: str) -> Optional[dict]:
         """Find target by name or UniProt ID. Returns None if not found."""
         cache_key = f"target:{target_name.lower()}"
@@ -139,15 +166,16 @@ class ChEMBLAdapter(BaseAdapter):
         try:
             data = await self._get_json(
                 f"{self.BASE_URL}/target/search.json",
-                params={"q": target_name, "limit": 5},
+                params={"q": target_name, "limit": 25},
             )
         except AdapterNotFound:
             data = {}
 
         targets = data.get("targets", [])
-        if targets:
-            self._cache.set("chembl", cache_key, targets[0], ttl=86400)
-            return targets[0]
+        best = self._select_best_target(targets)
+        if best is not None:
+            self._cache.set("chembl", cache_key, best, ttl=86400)
+            return best
 
         # Try as UniProt ID
         try:
@@ -193,7 +221,9 @@ class ChEMBLAdapter(BaseAdapter):
                 BioactivityData(
                     compound=compound,
                     target_name=act.get("target_pref_name", "Unknown"),
-                    target_uniprot=act.get("target_organism"),
+                    # The activity payload carries no UniProt accession; leave
+                    # it unset rather than storing the organism string here.
+                    target_uniprot=None,
                     activity_type=act.get("standard_type", ""),
                     activity_value=float(act.get("standard_value", 0)),
                     activity_unit=act.get("standard_units", "nM"),
