@@ -79,7 +79,9 @@ markers = [
 ]
 
 [tool.mypy]
-python_version = "3.10"
+# No python_version pin: mypy infers it from each CI matrix runtime. Pinning to
+# 3.10 made mypy parse numpy's 3.12 stubs (PEP 695 `type` aliases) under 3.10
+# rules, failing the 3.12 job; the 3.10 matrix job still covers the min version.
 ignore_missing_imports = true
 check_untyped_defs = true
 warn_redundant_casts = true
