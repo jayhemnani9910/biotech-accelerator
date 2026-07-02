@@ -185,13 +185,6 @@ uv pip install -e .
 If you prefer a plain venv (no uv), edit `.mcp.json` to point `command` at
 your venv's `biotech-mcp` script (e.g. `./.venv/bin/biotech-mcp`).
 
-Project-local slash commands in `.claude/commands/` provide ready-made
-workflows:
-
-- `/research "<question>"` — full pipeline + synthesis
-- `/analyze-pdb <pdb_id> [...]` — NMA dynamics summary
-- `/find-mutations "<protein>"` — literature-reported mutations mapped to structure
-
 ## Example Queries
 
 | Query | What It Does |
