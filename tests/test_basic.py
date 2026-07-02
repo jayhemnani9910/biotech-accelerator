@@ -46,10 +46,8 @@ async def test_pdb_adapter():
     return structure
 
 
-async def test_nma_analysis(pdb_path: Path):
-    """Test Normal Mode Analysis."""
-    print("\n=== Testing NMA Analysis ===\n")
-
+async def _run_nma(pdb_path: Path):
+    """Run NMA on a given structure path (shared by the test and main())."""
     analyzer = NMAAnalyzer(n_modes=20)
 
     print(f"Running NMA on: {pdb_path}")
@@ -65,6 +63,21 @@ async def test_nma_analysis(pdb_path: Path):
 
     print("\n✓ NMA Analysis test passed!")
     return result
+
+
+async def test_nma_analysis():
+    """Test Normal Mode Analysis (pytest entry — fetches its own structure)."""
+    print("\n=== Testing NMA Analysis ===\n")
+
+    adapter = PDBAdapter()
+    try:
+        path = await adapter.get_structure_file("1LYZ")
+    finally:
+        await adapter.close()
+
+    result = await _run_nma(path)
+    assert result.n_modes > 0
+    assert result.flexibility.mean_fluctuation > 0
 
 
 async def test_structure_agent():
@@ -109,7 +122,7 @@ async def main():
         structure = await test_pdb_adapter()
 
         # Test NMA analysis
-        await test_nma_analysis(structure.file_path)
+        await _run_nma(structure.file_path)
 
         # Test agent
         await test_structure_agent()
