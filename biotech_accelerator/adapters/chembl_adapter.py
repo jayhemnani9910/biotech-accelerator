@@ -221,7 +221,9 @@ class ChEMBLAdapter(BaseAdapter):
                 BioactivityData(
                     compound=compound,
                     target_name=act.get("target_pref_name", "Unknown"),
-                    target_uniprot=act.get("target_organism"),
+                    # The activity payload carries no UniProt accession; leave
+                    # it unset rather than storing the organism string here.
+                    target_uniprot=None,
                     activity_type=act.get("standard_type", ""),
                     activity_value=float(act.get("standard_value", 0)),
                     activity_unit=act.get("standard_units", "nM"),
