@@ -59,17 +59,11 @@ class BaseAdapter:
         self._max_retries = max_retries
         self._backoff_base = backoff_base
 
-    def __del__(self):
-        client = getattr(self, "_client", None)
-        if client is None:
-            return
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            # No running loop in this thread — nothing we can do from __del__.
-            logger.debug("Adapter GC with no running loop; relying on async close()")
-            return
-        loop.create_task(client.aclose())
+    # No __del__ here on purpose. It used to schedule client.aclose() with
+    # loop.create_task() and drop the returned task, so the task could be
+    # garbage-collected before it ran — an unreliable cleanup that hid the fact
+    # that callers should close explicitly. Every caller uses close() or the
+    # async context manager below; that is the cleanup path.
 
     async def close(self):
         await self._client.aclose()

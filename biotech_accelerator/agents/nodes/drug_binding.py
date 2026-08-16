@@ -7,14 +7,32 @@ and cross-references with structural analysis.
 
 import logging
 import re
+import unicodedata
 from dataclasses import dataclass
 from typing import Any, Optional
 
 from ...adapters.chembl_adapter import ChEMBLAdapter
 from ...domain.compound_models import CompoundInfo
+from ...domain.vocabulary import EXCLUDED_TOKENS
 from ...ports.compound import BioactivityData
 
 logger = logging.getLogger(__name__)
+
+# Concentration unit -> multiplier to reach nanomolar. Keys are NFKC-normalised
+# and lowercased; "μm" here is U+03BC, which NFKC produces from both mu variants.
+_UNIT_TO_NM = {
+    "m": 1e9,
+    "molar": 1e9,
+    "mm": 1e6,
+    "millimolar": 1e6,
+    "um": 1e3,
+    "μm": 1e3,
+    "micromolar": 1e3,
+    "nm": 1.0,
+    "nanomolar": 1.0,
+    "pm": 1e-3,
+    "picomolar": 1e-3,
+}
 
 
 @dataclass
@@ -130,22 +148,31 @@ class DrugBindingAgent:
         query: str,
         protein_names: list[str],
     ) -> list[str]:
-        """Extract drug targets from query."""
-        targets = []
+        """Extract drug targets from query.
+
+        Every candidate is filtered through EXCLUDED_TOKENS. Without it the
+        patterns below happily produce targets from ordinary prose — "target
+        protein" yields PROTEIN, "inhibit the receptor" yields THE — and each
+        one becomes a live ChEMBL search.
+        """
+        targets: list[str] = []
+
+        def add(candidate: str) -> None:
+            symbol = candidate.upper()
+            if len(symbol) >= 2 and symbol not in EXCLUDED_TOKENS and symbol not in targets:
+                targets.append(symbol)
+
         query_lower = query.lower()
 
         # Check for known targets
-        for key, (symbol, name) in self.TARGET_MAP.items():
+        for key, (symbol, _name) in self.TARGET_MAP.items():
             if key in query_lower:
-                targets.append(symbol)
+                add(symbol)
 
         # Add protein names that look like targets
         for protein in protein_names:
-            protein_upper = protein.upper()
-            # Common drug target patterns
-            if re.match(r"^[A-Z]{2,6}\d?$", protein_upper):
-                if protein_upper not in targets:
-                    targets.append(protein_upper)
+            if re.match(r"^[A-Z]{2,6}\d?$", protein.upper()):
+                add(protein)
 
         # Look for inhibitor/agonist/antagonist patterns
         patterns = [
@@ -157,11 +184,8 @@ class DrugBindingAgent:
         ]
 
         for pattern in patterns:
-            matches = re.findall(pattern, query_lower)
-            for match in matches:
-                match_upper = match.upper()
-                if len(match_upper) >= 2 and match_upper not in targets:
-                    targets.append(match_upper)
+            for match in re.findall(pattern, query_lower):
+                add(match)
 
         return targets
 
@@ -170,43 +194,68 @@ class DrugBindingAgent:
         activities: list[BioactivityData],
         target: str,
     ) -> list[DrugInsight]:
-        """Analyze bioactivity data and generate insights."""
-        insights = []
+        """Analyze bioactivity data and generate insights.
+
+        Rows whose unit cannot be put on the nanomolar scale are dropped rather
+        than ranked — comparing a raw value in µg/mL against one in nM produces
+        a confident ordering with no meaning behind it.
+        """
+        ranked: list[tuple[float, DrugInsight]] = []
 
         for act in activities:
-            # Classify potency
-            potency_class = self._classify_potency(act.activity_value, act.activity_unit)
+            nanomolar = self._to_nanomolar(act.activity_value, act.activity_unit)
+            if nanomolar is None:
+                logger.warning(
+                    f"Dropping {act.compound.name or act.compound.chembl_id}: "
+                    f"cannot convert {act.activity_value} {act.activity_unit!r} to nM"
+                )
+                continue
 
-            insights.append(
-                DrugInsight(
-                    compound=act.compound,
-                    target=target,
-                    activity_type=act.activity_type,
-                    activity_value=act.activity_value,
-                    activity_unit=act.activity_unit,
-                    potency_class=potency_class,
-                    is_approved_drug=self._is_likely_drug(act.compound),
+            ranked.append(
+                (
+                    nanomolar,
+                    DrugInsight(
+                        compound=act.compound,
+                        target=target,
+                        activity_type=act.activity_type,
+                        activity_value=act.activity_value,
+                        activity_unit=act.activity_unit,
+                        potency_class=self._classify_potency(act.activity_value, act.activity_unit),
+                        is_approved_drug=self._is_likely_drug(act.compound),
+                    ),
                 )
             )
 
-        # Sort by potency (lower value = more potent)
-        insights.sort(key=lambda x: x.activity_value)
+        # Sort on the common nM scale, not on the raw value (lower = more potent).
+        ranked.sort(key=lambda pair: pair[0])
 
-        return insights
+        return [insight for _, insight in ranked]
+
+    @staticmethod
+    def _to_nanomolar(value: float, unit: str) -> Optional[float]:
+        """Convert a concentration to nM, or None if the unit is unrecognised.
+
+        NFKC folds U+00B5 MICRO SIGN and U+03BC GREEK SMALL LETTER MU to the same
+        codepoint; ChEMBL emits both, and treating one of them as unrecognised
+        silently grades micromolar values on the nanomolar scale.
+        """
+        normalized = unicodedata.normalize("NFKC", unit or "").strip().lower()
+        factor = _UNIT_TO_NM.get(normalized)
+        if factor is None:
+            return None
+        return value * factor
 
     def _classify_potency(self, value: float, unit: str) -> str:
         """Classify compound potency based on IC50/Ki value."""
-        # Normalize to nM
-        if unit.lower() in ("um", "µm", "microm"):
-            value *= 1000  # Convert to nM
-        elif unit.lower() in ("pm", "picom"):
-            value /= 1000  # Convert to nM
+        nanomolar = self._to_nanomolar(value, unit)
+        if nanomolar is None:
+            return f"unknown potency (unit {unit!r})"
 
-        if value < 10:
+        if nanomolar < 10:
             return "highly potent (<10 nM)"
-        elif value < 100:
+        elif nanomolar < 100:
             return "potent (10-100 nM)"
-        elif value < 1000:
+        elif nanomolar < 1000:
             return "moderate (100-1000 nM)"
         else:
             return "weak (>1 µM)"

@@ -67,6 +67,64 @@ def test_classify_potency_pm_normalizes_to_nm():
     assert agent._classify_potency(5000.0, "pM") == "highly potent (<10 nM)"
 
 
+def test_classify_potency_accepts_greek_mu_as_micromolar():
+    """ChEMBL emits both U+00B5 MICRO SIGN and U+03BC GREEK SMALL LETTER MU."""
+    agent = DrugBindingAgent()
+    assert agent._classify_potency(5.0, "µM") == "weak (>1 µM)"
+    assert agent._classify_potency(5.0, "μM") == "weak (>1 µM)"
+
+
+def test_classify_potency_unknown_unit_is_not_graded():
+    """An unconvertible unit must not be silently graded on the nM scale."""
+    agent = DrugBindingAgent()
+    assert agent._classify_potency(5.0, "ug.mL-1") == "unknown potency (unit 'ug.mL-1')"
+    assert agent._classify_potency(5.0, "") == "unknown potency (unit '')"
+
+
+def test_classify_potency_micromolar_spelled_out():
+    agent = DrugBindingAgent()
+    assert agent._classify_potency(0.05, "micromolar") == "potent (10-100 nM)"
+
+
+# --- DrugBindingAgent._analyze_activities ranking ---------------------------
+
+
+def _activity(value, unit, name):
+    from biotech_accelerator.domain.compound_models import CompoundInfo
+    from biotech_accelerator.ports.compound import BioactivityData
+
+    return BioactivityData(
+        compound=CompoundInfo(name=name),
+        target_name="EGFR",
+        activity_type="IC50",
+        activity_value=value,
+        activity_unit=unit,
+    )
+
+
+def test_analyze_activities_ranks_across_mixed_units():
+    """5 nM is 1000x more potent than 5 µM and must sort above it."""
+    agent = DrugBindingAgent()
+    activities = [_activity(5.0, "uM", "weak-one"), _activity(5.0, "nM", "strong-one")]
+
+    insights = agent._analyze_activities(activities, "EGFR")
+
+    assert [i.compound.name for i in insights] == ["strong-one", "weak-one"]
+
+
+def test_analyze_activities_drops_unconvertible_units_from_ranking():
+    """Rows we cannot put on a common scale must not be ranked as if we could."""
+    agent = DrugBindingAgent()
+    activities = [
+        _activity(5.0, "ug.mL-1", "unrankable"),
+        _activity(50.0, "nM", "rankable"),
+    ]
+
+    insights = agent._analyze_activities(activities, "EGFR")
+
+    assert [i.compound.name for i in insights] == ["rankable"]
+
+
 # --- DrugBindingAgent._extract_targets -------------------------------------
 
 
@@ -91,6 +149,29 @@ def test_extract_targets_inhibitor_pattern():
 def test_extract_targets_empty_query():
     agent = DrugBindingAgent()
     assert agent._extract_targets("no targets here", []) == []
+
+
+def test_extract_targets_ignores_the_word_target_itself():
+    r"""The pattern "target\s+(\w+)" turned "target protein" into a ChEMBL query."""
+    agent = DrugBindingAgent()
+    assert "PROTEIN" not in agent._extract_targets("what does this target protein do", [])
+
+
+def test_extract_targets_ignores_common_words_from_inhibitor_patterns():
+    agent = DrugBindingAgent()
+    assert "THE" not in agent._extract_targets("which compounds inhibit the receptor", [])
+
+
+def test_extract_targets_ignores_generic_biology_words_in_protein_names():
+    agent = DrugBindingAgent()
+    assert agent._extract_targets("", ["DNA", "RNA", "CELL", "HUMAN"]) == []
+
+
+def test_extract_targets_still_finds_a_real_symbol_next_to_noise():
+    agent = DrugBindingAgent()
+    targets = agent._extract_targets("find a KRAS inhibitor for this target protein", [])
+    assert "KRAS" in targets
+    assert "PROTEIN" not in targets
 
 
 # --- SynthesisAgent.MUTATION_PATTERNS + _extract_mutations_from_literature -
@@ -134,23 +215,8 @@ def test_extract_mutations_none():
     assert agent._extract_mutations_from_literature(citations) == []
 
 
-# --- SynthesisAgent._extract_hinge_residues / _extract_flexible_regions ----
-
-
-def test_extract_hinge_residues_basic():
-    agent = SynthesisAgent()
-    assert agent._extract_hinge_residues("Hinge residues: 45, 46, 47") == [45, 46, 47]
-
-
-def test_extract_hinge_residues_missing():
-    agent = SynthesisAgent()
-    assert agent._extract_hinge_residues("no hinge info") == []
-
-
-def test_extract_flexible_regions_basic():
-    agent = SynthesisAgent()
-    regions = agent._extract_flexible_regions("Flexible regions: 44-49, 66-72")
-    assert (44, 49) in regions and (66, 72) in regions
+# Structural data is no longer regex-parsed out of the rendered summary; the
+# typed-state contract that replaced it is covered in tests/test_structural_state.py.
 
 
 # --- parse_query_node (async) ---------------------------------------------

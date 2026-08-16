@@ -22,7 +22,8 @@ class StructureAnalysisResult:
     """Result from structure analysis."""
 
     pdb_id: str
-    structure: PDBStructure
+    # None when the fetch or the analysis failed; `error` says why.
+    structure: Optional[PDBStructure] = None
     nma_result: Optional[NMAResult] = None
     summary: str = ""
     error: Optional[str] = None

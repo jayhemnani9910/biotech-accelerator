@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import os
 import time
 import xml.etree.ElementTree as ET
 from datetime import date
@@ -18,11 +19,17 @@ class PubMedAdapter(BaseAdapter):
 
     BASE_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
     _REQUEST_INTERVAL = 0.4  # 400ms between requests (NCBI rate limit)
+    DEFAULT_EMAIL = "biotech-accelerator@example.com"
 
     def __init__(self, email: Optional[str] = None, api_key: Optional[str] = None):
+        """Explicit arguments win; otherwise read the documented env vars.
+
+        NCBI attributes rate limits to the contact email, so leaving every
+        install on the placeholder address gets them throttled together.
+        """
         super().__init__()
-        self.email = email or "biotech-accelerator@example.com"
-        self.api_key = api_key
+        self.email = email or os.getenv("PUBMED_EMAIL") or self.DEFAULT_EMAIL
+        self.api_key = api_key or os.getenv("PUBMED_API_KEY")
         self._rate_limit_lock = asyncio.Lock()
         self._last_request_time = 0.0
 
@@ -41,6 +48,27 @@ class PubMedAdapter(BaseAdapter):
                 await asyncio.sleep(self._REQUEST_INTERVAL - elapsed)
             self._last_request_time = time.time()
 
+    # Sentinels for a half-open range. E-utilities has no "unbounded" token, so
+    # a bound the caller left off becomes a date far outside any real record.
+    _MIN_PDAT = "1000/01/01"
+    _MAX_PDAT = "3000/01/01"
+
+    @classmethod
+    def _date_filter(cls, date_from: Optional[date], date_to: Optional[date]) -> str:
+        """Build the [PDAT] clause for any combination of bounds.
+
+        Must be assembled as one clause: building it from two independent
+        branches put the AND on the lower bound and a bare ':' on the upper one,
+        so an upper-bound-only search appended a fragment PubMed ignored — and
+        returned unfiltered results that looked filtered.
+        """
+        if date_from is None and date_to is None:
+            return ""
+
+        lower = date_from.strftime("%Y/%m/%d") if date_from else cls._MIN_PDAT
+        upper = date_to.strftime("%Y/%m/%d") if date_to else cls._MAX_PDAT
+        return f" AND {lower}:{upper}[PDAT]"
+
     async def search(
         self,
         query: str,
@@ -51,11 +79,7 @@ class PubMedAdapter(BaseAdapter):
         """Search PubMed for papers."""
         empty = LiteratureSearchResult(citations=[], total_count=0, query=query)
 
-        date_filter = ""
-        if date_from:
-            date_filter += f" AND {date_from.strftime('%Y/%m/%d')}[PDAT]"
-        if date_to:
-            date_filter += f" : {date_to.strftime('%Y/%m/%d')}[PDAT]"
+        date_filter = self._date_filter(date_from, date_to)
 
         params = self._build_params(
             db="pubmed",
@@ -168,18 +192,6 @@ class PubMedAdapter(BaseAdapter):
         except (AttributeError, TypeError, KeyError) as e:
             logger.warning(f"Failed to parse article: {e}")
             return None
-
-    async def get_paper(self, identifier: str) -> Citation:
-        """Get a specific paper by PMID or DOI."""
-        if identifier.startswith("10."):
-            query = f"{identifier}[doi]"
-        else:
-            query = f"{identifier}[pmid]"
-
-        result = await self.search(query, max_results=1)
-        if result.citations:
-            return result.citations[0]
-        raise ValueError(f"Paper not found: {identifier}")
 
     async def search_by_protein(
         self,
