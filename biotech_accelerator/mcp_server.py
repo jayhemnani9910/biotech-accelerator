@@ -9,6 +9,9 @@ no embedded LLM calls; reasoning happens in the client.
 
 from __future__ import annotations
 
+import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from typing import Any, Optional
 
 import numpy as np
@@ -28,8 +31,7 @@ from .utils.cache import get_cache
 from .utils.serialization import to_jsonable as _serialize
 from .version import __version__
 
-mcp = MCPServer("biotech-accelerator", version=__version__)
-
+logger = logging.getLogger(__name__)
 
 # --- lazy adapter cache (one instance per process) -------------------------
 
@@ -41,6 +43,31 @@ def _adapter(key: str, factory):
     if key not in _adapters:
         _adapters[key] = factory()
     return _adapters[key]
+
+
+@asynccontextmanager
+async def _lifespan(server: MCPServer) -> AsyncIterator[None]:
+    """Close the cached adapters when the server shuts down.
+
+    Each adapter holds an httpx.AsyncClient that nothing was closing. Cleanup is
+    best-effort: shutdown is exactly when a connection is most likely to be gone
+    already, and one adapter failing must not strand the rest.
+    """
+    try:
+        yield
+    finally:
+        for key, adapter in list(_adapters.items()):
+            close = getattr(adapter, "close", None)
+            if close is None:
+                continue
+            try:
+                await close()
+            except Exception as e:  # noqa: BLE001 - best-effort shutdown
+                logger.warning(f"Failed to close {key} adapter: {e}")
+        _adapters.clear()
+
+
+mcp = MCPServer("biotech-accelerator", version=__version__, lifespan=_lifespan)
 
 
 # --- Literature ------------------------------------------------------------

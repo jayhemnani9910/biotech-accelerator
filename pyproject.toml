@@ -18,9 +18,16 @@ keywords = ["biotech", "AI", "multi-agent", "protein", "research", "langgraph"]
 # via prody, and pydantic via mcp; numpy is listed because the code imports it
 # directly. Anything ML-flavoured (torch, torch-geometric, rdkit) was declared
 # but never imported — it added ~3.8 GB to every install for nothing.
+#
+# Every entry carries an upper bound at the next major. Without one, a major
+# release is picked up silently at install time: mcp 2.0 removed
+# mcp.server.fastmcp and the first anyone knew was CI going red on unrelated
+# work. Dependabot watches pip here, so a bound is also what gives it something
+# to raise a PR against — an unbounded range leaves it nothing to bump, and the
+# breaking version arrives untested instead.
 dependencies = [
     # Workflow orchestration
-    "langgraph>=0.2.0",
+    "langgraph>=0.2.0,<2.0.0",
 
     # MCP server (consumed by Claude Code and other MCP clients).
     # 2.x only: the server class moved from mcp.server.fastmcp.FastMCP to
@@ -29,30 +36,33 @@ dependencies = [
     "mcp>=2.0.0,<3.0.0",
 
     # Molecular biology — ANM/GNM normal mode analysis
-    "prody>=2.0",
+    "prody>=2.0,<3.0",
 
     # Scientific computing
-    "numpy>=1.21.0",
+    "numpy>=1.21.0,<3.0.0",
 
     # HTTP/API
-    "httpx>=0.24.0",
+    "httpx>=0.24.0,<1.0.0",
 
     # Hardened XML parsing for PubMed efetch responses (pure Python, no deps).
     # stdlib ElementTree expands internal entities, and that parse runs on bytes
     # taken straight off the network.
-    "defusedxml>=0.7.1",
+    "defusedxml>=0.7.1,<1.0.0",
 
     # Terminal output
-    "rich>=13.0.0",
+    "rich>=13.0.0,<16.0.0",
 ]
 
 [project.optional-dependencies]
+# Bounded for the same reason as the runtime deps. Linters and type checkers are
+# the likeliest to redden CI on an unrelated commit, since a new release can add
+# rules or tighten inference without any code changing.
 dev = [
-    "pytest>=7.0.0",
-    "pytest-asyncio>=0.21.0",
-    "pytest-cov>=4.0.0",
-    "ruff>=0.1.0",
-    "mypy>=1.10.0",
+    "pytest>=7.0.0,<10.0.0",
+    "pytest-asyncio>=0.21.0,<2.0.0",
+    "pytest-cov>=4.0.0,<8.0.0",
+    "ruff>=0.1.0,<1.0.0",
+    "mypy>=1.10.0,<3.0.0",
 ]
 
 [project.scripts]
