@@ -8,6 +8,9 @@ import xml.etree.ElementTree as ET
 from datetime import date
 from typing import Optional
 
+from defusedxml.common import DefusedXmlException
+from defusedxml.ElementTree import fromstring as defused_fromstring
+
 from ..ports.literature import Citation, LiteratureSearchResult
 from .base import AdapterError, AdapterParseError, BaseAdapter
 
@@ -120,8 +123,8 @@ class PubMedAdapter(BaseAdapter):
             return []
 
         try:
-            root = ET.fromstring(response.content)
-        except ET.ParseError as e:
+            root = self._parse_xml(response.content)
+        except (ET.ParseError, DefusedXmlException) as e:
             raise AdapterParseError(url, f"Invalid XML: {e}") from e
 
         citations = []
@@ -131,6 +134,75 @@ class PubMedAdapter(BaseAdapter):
                 citations.append(citation)
         return citations
 
+    @staticmethod
+    def _parse_xml(payload) -> ET.Element:
+        """Parse an efetch response.
+
+        Uses defusedxml rather than the stdlib parser: this runs on bytes taken
+        straight off the network, and stdlib ElementTree expands internal
+        entities, so a hostile or compromised response can exhaust memory before
+        anything gets a chance to validate it.
+        """
+        return defused_fromstring(payload)
+
+    @staticmethod
+    def _text_of(element: Optional[ET.Element]) -> str:
+        """Full text of an element, including anything after inline markup.
+
+        PubMed titles and abstracts carry <i>, <sub>, <sup> and friends. Reading
+        `.text` stops at the first child, so "Effects of <i>KRAS</i> G12C" came
+        back as "Effects of ".
+        """
+        if element is None:
+            return ""
+        return "".join(element.itertext()).strip()
+
+    @classmethod
+    def _abstract_of(cls, article_elem: ET.Element) -> Optional[str]:
+        """Join every section of an abstract, labels included.
+
+        Biomedical abstracts are usually structured — several AbstractText
+        elements labelled BACKGROUND / METHODS / RESULTS / CONCLUSIONS. Taking
+        only the first one dropped RESULTS, which is where mutations are
+        reported, so downstream extraction never saw them.
+        """
+        sections = []
+        for node in article_elem.findall(".//Abstract/AbstractText"):
+            text = cls._text_of(node)
+            if not text:
+                continue
+            label = node.get("Label") or node.get("NlmCategory")
+            sections.append(f"{label.strip()}: {text}" if label else text)
+
+        return "\n\n".join(sections) if sections else None
+
+    @classmethod
+    def _authors_of(cls, article_elem: ET.Element) -> list[str]:
+        authors: list[str] = []
+        for author in article_elem.findall(".//Author"):
+            last_name = cls._text_of(author.find("LastName"))
+            if not last_name:
+                # Consortium/group authorship carries a CollectiveName instead.
+                collective = cls._text_of(author.find("CollectiveName"))
+                if collective:
+                    authors.append(collective)
+                continue
+            first_name = cls._text_of(author.find("ForeName"))
+            authors.append(f"{first_name} {last_name}" if first_name else last_name)
+        return authors
+
+    @classmethod
+    def _year_of(cls, article_elem: ET.Element) -> Optional[int]:
+        year = cls._text_of(article_elem.find(".//PubDate/Year"))
+        if not year:
+            # Some records carry only "2024 Mar-Apr" in MedlineDate.
+            medline_date = cls._text_of(article_elem.find(".//PubDate/MedlineDate"))
+            year = medline_date[:4]
+        try:
+            return int(year)
+        except ValueError:
+            return None
+
     def _parse_article(self, article: ET.Element) -> Optional[Citation]:
         """Parse a PubmedArticle XML element into a Citation."""
         try:
@@ -138,54 +210,26 @@ class PubMedAdapter(BaseAdapter):
             if medline is None:
                 return None
 
-            pmid_elem = medline.find(".//PMID")
-            pmid = pmid_elem.text if pmid_elem is not None else None
-
             article_elem = medline.find(".//Article")
             if article_elem is None:
                 return None
 
-            title_elem = article_elem.find(".//ArticleTitle")
-            title = (title_elem.text or "") if title_elem is not None else ""
-
-            abstract_elem = article_elem.find(".//Abstract/AbstractText")
-            abstract = abstract_elem.text if abstract_elem is not None else None
-
-            authors: list[str] = []
-            for author in article_elem.findall(".//Author"):
-                last_name = author.find("LastName")
-                first_name = author.find("ForeName")
-                if last_name is not None and last_name.text:
-                    name = last_name.text
-                    if first_name is not None and first_name.text:
-                        name = f"{first_name.text} {name}"
-                    authors.append(name)
-
-            journal_elem = article_elem.find(".//Journal/Title")
-            journal = (journal_elem.text or "") if journal_elem is not None else ""
-
-            year = None
-            year_elem = article_elem.find(".//PubDate/Year")
-            if year_elem is not None and year_elem.text:
-                try:
-                    year = int(year_elem.text)
-                except ValueError:
-                    pass
+            pmid = self._text_of(medline.find(".//PMID")) or None
 
             doi = None
             for id_elem in article.findall(".//ArticleId"):
                 if id_elem.get("IdType") == "doi":
-                    doi = id_elem.text
+                    doi = self._text_of(id_elem) or None
                     break
 
             return Citation(
                 pmid=pmid,
                 doi=doi,
-                title=title,
-                authors=authors,
-                journal=journal,
-                year=year,
-                abstract=abstract,
+                title=self._text_of(article_elem.find(".//ArticleTitle")),
+                authors=self._authors_of(article_elem),
+                journal=self._text_of(article_elem.find(".//Journal/Title")),
+                year=self._year_of(article_elem),
+                abstract=self._abstract_of(article_elem),
                 url=f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/" if pmid else None,
             )
 

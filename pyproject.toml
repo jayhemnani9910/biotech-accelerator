@@ -37,6 +37,11 @@ dependencies = [
     # HTTP/API
     "httpx>=0.24.0",
 
+    # Hardened XML parsing for PubMed efetch responses (pure Python, no deps).
+    # stdlib ElementTree expands internal entities, and that parse runs on bytes
+    # taken straight off the network.
+    "defusedxml>=0.7.1",
+
     # Terminal output
     "rich>=13.0.0",
 ]
