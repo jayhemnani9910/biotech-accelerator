@@ -20,6 +20,7 @@ from ..agents.nodes.bio_literature import BioLiteratureAgent
 from ..agents.nodes.drug_binding import DrugBindingAgent
 from ..agents.nodes.structure_analyst import StructureAnalystAgent
 from ..agents.nodes.synthesis import SynthesisAgent
+from ..domain.vocabulary import EXCLUDED_TOKENS
 
 logger = logging.getLogger(__name__)
 
@@ -27,44 +28,9 @@ logger = logging.getLogger(__name__)
 _PDB_ID_PATTERN = re.compile(r"\b([0-9][A-Z0-9]{3})\b", re.IGNORECASE)
 _GENE_PATTERN = re.compile(r"\b([A-Z]{2,6})\b")
 
-_EXCLUDE_TERMS = {
-    "PDB",
-    "DNA",
-    "RNA",
-    "NMR",
-    "AND",
-    "THE",
-    "FOR",
-    "NOT",
-    "WITH",
-    "FROM",
-    "THAT",
-    "THIS",
-    "HAVE",
-    "BEEN",
-    "WERE",
-    "WHAT",
-    "HOW",
-    "WHY",
-    "CAN",
-    "ARE",
-    "WAS",
-    "HAS",
-    "HAD",
-    "WILL",
-    "STUDY",
-    "RESULTS",
-    "METHODS",
-    "DATA",
-    "ANALYSIS",
-    "RESEARCH",
-    "PROTEIN",
-    "GENE",
-    "CELL",
-    "HUMAN",
-    "MOUSE",
-    "RAT",
-}
+# Shared with DrugBindingAgent._extract_targets, which pulls candidate symbols
+# out of the same free text and needs the same stop list.
+_EXCLUDE_TERMS = EXCLUDED_TOKENS
 
 # Common protein name to UniProt ID mapping
 PROTEIN_NAME_MAP = {

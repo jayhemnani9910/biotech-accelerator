@@ -8,6 +8,7 @@ from the nobel-dataintelligence project.
 import logging
 import sys
 from pathlib import Path
+from typing import Optional
 
 import numpy as np
 
@@ -80,6 +81,11 @@ class NMAAnalyzer:
         n_atoms = len(calphas)
         logger.info(f"Found {n_atoms} C-alpha atoms")
 
+        # Deposited numbering — index i of every array below is resnums[i], which
+        # is NOT i itself for any structure with gaps or multiple chains.
+        resnums = calphas.getResnums()
+        chain_ids = calphas.getChids()
+
         # Build ANM model
         anm = prody.ANM(f"ANM_{pdb_path.stem}")
         anm.buildHessian(calphas, cutoff=self.cutoff)
@@ -107,7 +113,7 @@ class NMAAnalyzer:
         vibrational_entropy = kb * temp * np.sum(np.log(positive_eigenvalues))
 
         # Identify flexible and rigid regions
-        flexibility = self._analyze_flexibility(fluctuations)
+        flexibility = self._analyze_flexibility(fluctuations, resnums, chain_ids)
 
         pdb_id = pdb_path.stem.upper()[:4]
 
@@ -120,11 +126,15 @@ class NMAAnalyzer:
             collectivity=collectivity,
             vibrational_entropy=vibrational_entropy,
             flexibility=flexibility,
+            residue_numbers=[int(r) for r in resnums],
+            chain_ids=[str(c) for c in chain_ids],
         )
 
     def _analyze_flexibility(
         self,
         fluctuations: np.ndarray,
+        resnums: np.ndarray,
+        chain_ids: np.ndarray,
         threshold_high: float = 1.5,
         threshold_low: float = 0.5,
         min_region_size: int = 3,
@@ -133,29 +143,32 @@ class NMAAnalyzer:
         Analyze flexibility from fluctuation profile.
 
         Args:
-            fluctuations: Per-residue fluctuations
+            fluctuations: Per-residue fluctuations, in Ca-array order
+            resnums: Deposited residue number for each entry in `fluctuations`
+            chain_ids: Chain ID for each entry in `fluctuations`
             threshold_high: Multiplier of mean for flexible regions
             threshold_low: Multiplier of mean for rigid regions
             min_region_size: Minimum consecutive residues for a region
 
         Returns:
-            FlexibilityMetrics
+            FlexibilityMetrics, with every position expressed as a deposited
+            residue number rather than an index into the Ca array.
         """
         mean_fluct = np.mean(fluctuations)
         normalized = fluctuations / mean_fluct
 
         # Find flexible regions (above threshold)
         flexible_mask = normalized > threshold_high
-        flexible_regions = self._find_regions(flexible_mask, min_region_size)
+        flexible_regions = self._find_regions(flexible_mask, resnums, chain_ids, min_region_size)
 
         # Find rigid regions (below threshold)
         rigid_mask = normalized < threshold_low
-        rigid_regions = self._find_regions(rigid_mask, min_region_size)
+        rigid_regions = self._find_regions(rigid_mask, resnums, chain_ids, min_region_size)
 
         # Find hinge residues (high gradient in fluctuation)
         gradient = np.abs(np.gradient(normalized))
         hinge_threshold = np.percentile(gradient, 90)
-        hinge_residues = list(np.where(gradient > hinge_threshold)[0])
+        hinge_residues = [int(resnums[i]) for i in np.where(gradient > hinge_threshold)[0]]
 
         return FlexibilityMetrics(
             mean_fluctuation=float(mean_fluct),
@@ -165,28 +178,43 @@ class NMAAnalyzer:
             hinge_residues=hinge_residues,
         )
 
+    @staticmethod
     def _find_regions(
-        self,
         mask: np.ndarray,
+        resnums: np.ndarray,
+        chain_ids: np.ndarray,
         min_size: int,
     ) -> list[tuple[int, int]]:
-        """Find contiguous regions in a boolean mask."""
-        regions = []
-        in_region = False
-        start = 0
+        """Find contiguous regions in a boolean mask, as (start, end) resnum pairs.
+
+        A run is broken not only where the mask goes false, but also where the
+        structure itself is discontinuous — an unresolved stretch (resnum jump)
+        or a chain boundary. Without that, a reported span would cover residues
+        that are not in the region, or not even in the same chain.
+        """
+        regions: list[tuple[int, int]] = []
+        start: Optional[int] = None
+
+        def close(begin: int, end_exclusive: int) -> None:
+            if end_exclusive - begin >= min_size:
+                regions.append((int(resnums[begin]), int(resnums[end_exclusive - 1])))
 
         for i, val in enumerate(mask):
-            if val and not in_region:
+            adjacent = (
+                i > 0 and resnums[i] == resnums[i - 1] + 1 and chain_ids[i] == chain_ids[i - 1]
+            )
+            if not val:
+                if start is not None:
+                    close(start, i)
+                    start = None
+            elif start is None:
                 start = i
-                in_region = True
-            elif not val and in_region:
-                if i - start >= min_size:
-                    regions.append((start, i - 1))
-                in_region = False
+            elif not adjacent:
+                close(start, i)
+                start = i
 
-        # Handle region at end
-        if in_region and len(mask) - start >= min_size:
-            regions.append((start, len(mask) - 1))
+        if start is not None:
+            close(start, len(mask))
 
         return regions
 

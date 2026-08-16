@@ -55,8 +55,14 @@ Thumbs.db
 # Local session transcripts
 chats.md
 
-# Per-machine Claude Code settings (project-level .claude/settings.json is fine)
-.claude/settings.local.json
+# Stray reference PDFs dropped in the working tree — the repo ships no PDFs, so
+# this keeps `git add -A` from sweeping one in.
+*.pdf
+
+# Per-machine Claude Code settings (project-level .claude/settings.json is fine).
+# The glob matters: the editor writes settings.local.json.tmp.<pid>.<hash>
+# alongside it, and those get swept in by `git add -A` otherwise.
+.claude/settings.local.json*
 
 # uv lock file — project uses standard pyproject, keep repo tool-agnostic
 uv.lock

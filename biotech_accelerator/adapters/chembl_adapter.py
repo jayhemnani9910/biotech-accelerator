@@ -191,61 +191,6 @@ class ChEMBLAdapter(BaseAdapter):
         self._cache.set("chembl", cache_key, result if result else "NOT_FOUND", ttl=86400)
         return result
 
-    async def get_bioactivity(
-        self,
-        compound_id: str,
-        target: Optional[str] = None,
-    ) -> list[BioactivityData]:
-        """Get bioactivity data for a compound."""
-        params = {"molecule_chembl_id": compound_id.upper(), "limit": 100}
-
-        if target:
-            target_data = await self._find_target(target)
-            if target_data:
-                params["target_chembl_id"] = target_data.get("target_chembl_id")
-
-        try:
-            data = await self._get_json(f"{self.BASE_URL}/activity.json", params=params)
-        except AdapterNotFound:
-            return []
-
-        results = []
-        for act in data.get("activities", []):
-            if not act.get("standard_value"):
-                continue
-            compound = CompoundInfo(
-                name=act.get("molecule_pref_name") or compound_id,
-                chembl_id=compound_id,
-            )
-            results.append(
-                BioactivityData(
-                    compound=compound,
-                    target_name=act.get("target_pref_name", "Unknown"),
-                    # The activity payload carries no UniProt accession; leave
-                    # it unset rather than storing the organism string here.
-                    target_uniprot=None,
-                    activity_type=act.get("standard_type", ""),
-                    activity_value=float(act.get("standard_value", 0)),
-                    activity_unit=act.get("standard_units", "nM"),
-                    assay_type=act.get("assay_type"),
-                )
-            )
-        return results
-
-    async def search_similar(
-        self,
-        smiles: str,
-        similarity_threshold: float = 0.7,
-        max_results: int = 20,
-    ) -> list[CompoundInfo]:
-        """Search for similar compounds by structure."""
-        url = f"{self.BASE_URL}/similarity/{smiles}/{int(similarity_threshold * 100)}.json"
-        try:
-            data = await self._get_json(url, params={"limit": max_results})
-        except AdapterNotFound:
-            return []
-        return [self._parse_molecule(mol) for mol in data.get("molecules", [])]
-
     async def get_approved_drugs_for_target(
         self,
         target_name: str,

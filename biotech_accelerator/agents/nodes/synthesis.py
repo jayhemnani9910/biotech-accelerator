@@ -7,9 +7,10 @@ Extracts mutations from papers and cross-references with flexibility data.
 
 import logging
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Optional
 
+from ._structural_context import StructuralContext, resolved_residues, structural_context
 from .experiment_suggester import ExperimentSuggester
 
 logger = logging.getLogger(__name__)
@@ -27,6 +28,27 @@ class MutationInfo:
 
 
 @dataclass
+class ReportData:
+    """Everything the final report is rendered from.
+
+    Collected into one value object because passing eleven positional arguments
+    made the signature the hardest thing about the function.
+    """
+
+    query: str = ""
+    lit_summary: str = ""
+    struct_summary: str = ""
+    drug_summary: str = ""
+    lit_count: int = 0
+    pdb_ids: list[str] = field(default_factory=list)
+    mutations: list["MutationInfo"] = field(default_factory=list)
+    insights: list["MutationInsight"] = field(default_factory=list)
+    drug_insights: list = field(default_factory=list)
+    experiment_suggestions: str = ""
+    resolution_warning: str = ""
+
+
+@dataclass
 class MutationInsight:
     """Insight from cross-referencing mutation with structure."""
 
@@ -35,6 +57,9 @@ class MutationInsight:
     is_hinge_residue: bool
     flexibility_score: Optional[float]
     recommendation: str
+    # False when the residue is absent from the analysed structure, in which case
+    # the flags above carry no structural meaning.
+    is_resolved: bool = True
 
 
 class SynthesisAgent:
@@ -104,12 +129,16 @@ class SynthesisAgent:
         mutations = self._extract_mutations_from_literature(citations)
         logger.info(f"Extracted {len(mutations)} mutations from literature")
 
-        # Extract hinge residues from structure analysis
-        hinge_residues = self._extract_hinge_residues(struct_summary)
-        flexible_regions = self._extract_flexible_regions(struct_summary)
+        # Structural data comes from the typed NMA results, not the summary prose
+        hinge_residues, flexible_regions, _ = self._structural_context(state)
 
         # Cross-reference mutations with structural data
-        insights = self._generate_insights(mutations, hinge_residues, flexible_regions)
+        insights = self._generate_insights(
+            mutations,
+            hinge_residues,
+            flexible_regions,
+            resolved_residues=resolved_residues(state),
+        )
 
         # Generate experiment suggestions
         suggester = ExperimentSuggester()
@@ -118,24 +147,26 @@ class SynthesisAgent:
             "insights": insights,
             "drug_insights": drug_insights,
             "analyzed_pdb_ids": pdb_ids,
-            "structure_summary": struct_summary,
+            "structure_analysis": state.get("structure_analysis"),
         }
         suggestions = suggester.suggest(experiment_state)
         experiment_section = suggester.format_suggestions(suggestions)
 
         # Build synthesis report
         report = self._generate_report(
-            query=query,
-            lit_summary=lit_summary,
-            struct_summary=struct_summary,
-            drug_summary=drug_summary,
-            lit_count=lit_count,
-            pdb_ids=pdb_ids,
-            mutations=mutations,
-            insights=insights,
-            drug_insights=drug_insights,
-            experiment_suggestions=experiment_section,
-            resolution_warning=resolution_warning,
+            ReportData(
+                query=query,
+                lit_summary=lit_summary,
+                struct_summary=struct_summary,
+                drug_summary=drug_summary,
+                lit_count=lit_count,
+                pdb_ids=pdb_ids,
+                mutations=mutations,
+                insights=insights,
+                drug_insights=drug_insights or [],
+                experiment_suggestions=experiment_section,
+                resolution_warning=resolution_warning,
+            )
         )
 
         return {
@@ -190,60 +221,48 @@ class SynthesisAgent:
 
         return unique
 
-    def _extract_hinge_residues(self, struct_summary: str) -> list[int]:
-        """Extract hinge residue positions from structure summary."""
-        hinge_residues = []
-
-        # Multiple patterns to match different output formats
-        patterns = [
-            re.compile(r"[Hh]inge\s+[Rr]esidues?[:\s]+([0-9,\s]+)"),
-            re.compile(r"\*\*[Hh]inge\s+[Rr]esidues?\*\*[^:]*:\s*(?:residues?\s+)?([0-9,\s\-]+)"),
-            re.compile(r"hinge\s+(?:at\s+)?positions?\s*[:\s]+([0-9,\s]+)", re.IGNORECASE),
-            re.compile(r"hinge[:\s]+(\d+(?:[,\s]+\d+)*)", re.IGNORECASE),
-        ]
-
-        for pattern in patterns:
-            match = pattern.search(struct_summary)
-            if match:
-                numbers = re.findall(r"\d+", match.group(1))
-                hinge_residues = [int(n) for n in numbers]
-                if hinge_residues:
-                    break
-
-        return hinge_residues
-
-    def _extract_flexible_regions(self, struct_summary: str) -> list[tuple[int, int]]:
-        """Extract flexible region ranges from structure summary."""
-        regions = []
-
-        # Multiple patterns
-        patterns = [
-            re.compile(r"[Ff]lexible\s+[Rr]egions?[:\s]+(?:residues?\s+)?([0-9\-,\s]+)"),
-            re.compile(r"\*\*[Ff]lexible\s+[Rr]egions?\*\*[^:]*:\s*(?:residues?\s+)?([0-9\-,\s]+)"),
-            re.compile(r"flexible[:\s]+(\d+-\d+(?:[,\s]+\d+-\d+)*)", re.IGNORECASE),
-        ]
-
-        for pattern in patterns:
-            match = pattern.search(struct_summary)
-            if match:
-                range_strs = re.findall(r"(\d+)-(\d+)", match.group(1))
-                regions = [(int(a), int(b)) for a, b in range_strs]
-                if regions:
-                    break
-
-        return regions
+    @staticmethod
+    def _structural_context(state: dict[str, Any]) -> StructuralContext:
+        """Hinge residues and flexible/rigid regions from the analysed structures."""
+        return structural_context(state)
 
     def _generate_insights(
         self,
         mutations: list[MutationInfo],
         hinge_residues: list[int],
         flexible_regions: list[tuple[int, int]],
+        resolved_residues: Optional[set[int]] = None,
     ) -> list[MutationInsight]:
-        """Cross-reference mutations with structural data."""
+        """Cross-reference mutations with structural data.
+
+        `resolved_residues` is the set of residue numbers actually present in the
+        analysed structure. A mutation outside it gets no structural verdict —
+        calling an unmodelled residue "stable" reads as a real negative result
+        when it only means the residue was never looked at. Omit the argument
+        when there is no roster to check against (the MCP tool passes explicit
+        regions and has none).
+        """
         insights = []
 
         for mut in mutations:
             pos = mut.position
+
+            if resolved_residues is not None and pos not in resolved_residues:
+                insights.append(
+                    MutationInsight(
+                        mutation=mut,
+                        in_flexible_region=False,
+                        is_hinge_residue=False,
+                        flexibility_score=None,
+                        recommendation=(
+                            f"— {mut.original}{pos}{mut.mutant} is not resolved in the "
+                            "analysed structure, so no structural interpretation is "
+                            "available for it."
+                        ),
+                        is_resolved=False,
+                    )
+                )
+                continue
 
             # Check if mutation is in a flexible region
             in_flexible = any(start <= pos <= end for start, end in flexible_regions)
@@ -280,146 +299,129 @@ class SynthesisAgent:
 
         return insights
 
-    def _generate_report(
-        self,
-        query: str,
-        lit_summary: str,
-        struct_summary: str,
-        drug_summary: str,
-        lit_count: int,
-        pdb_ids: list[str],
-        mutations: list[MutationInfo],
-        insights: list[MutationInsight],
-        drug_insights: Optional[list] = None,
-        experiment_suggestions: str = "",
-        resolution_warning: str = "",
-    ) -> str:
-        """Generate the final synthesis report."""
-        drug_insights = drug_insights or []
+    # --- report assembly ---------------------------------------------------
+    #
+    # Split into three stages so the branching lives apart from the markdown:
+    # _evidence_sources / _key_findings / _fallback_recommendations decide what
+    # is true, and _generate_report only renders. The inputs travel as one
+    # ReportData rather than as eleven positional arguments.
 
+    @staticmethod
+    def _evidence_sources(data: "ReportData") -> list[str]:
+        """Which kinds of evidence this report is actually built on."""
+        sources = []
+        if data.lit_count > 0:
+            sources.append("literature evidence")
+        if data.pdb_ids:
+            sources.append("structural analysis")
+        if data.drug_insights:
+            sources.append("drug discovery data")
+        return sources
+
+    @staticmethod
+    def _key_findings(data: "ReportData") -> list[str]:
+        """One bullet per evidence stream that produced something."""
+        findings = []
+        if data.lit_count > 0:
+            findings.append("Literature provides context on known mutations and stability factors")
+        if data.pdb_ids:
+            findings.append("Structural analysis identifies flexible regions that may be targets")
+        if data.drug_insights:
+            potent = [
+                d
+                for d in data.drug_insights
+                if hasattr(d, "potency_class") and "potent" in d.potency_class
+            ]
+            findings.append(
+                f"Found {len(data.drug_insights)} compounds, {len(potent)} are potent inhibitors"
+            )
+        return findings
+
+    @staticmethod
+    def _fallback_recommendations(data: "ReportData") -> list[str]:
+        """Generic next steps, used only when no concrete experiment was suggested."""
+        recommendations = []
+
+        if data.mutations and data.pdb_ids:
+            hinge = [i for i in data.insights if i.is_hinge_residue]
+            stable = [i for i in data.insights if not i.in_flexible_region and i.is_resolved]
+            if stable:
+                recommendations.append(
+                    f"**Stabilizing candidates:** {len(stable)} mutations in stable regions"
+                )
+            if hinge:
+                recommendations.append(
+                    f"**Dynamics-altering:** {len(hinge)} mutations at hinge positions"
+                )
+
+        if data.drug_insights:
+            recommendations.append("Investigate top potent compounds for selectivity profiling")
+            recommendations.append("Consider structure-activity relationship (SAR) analysis")
+
+        if data.pdb_ids:
+            recommendations.append("Consider MD simulations to validate predicted effects")
+
+        recommendations.append("Experimental validation recommended")
+        return recommendations
+
+    def _generate_report(self, data: "ReportData") -> str:
+        """Render the final synthesis report. Decisions live in the helpers above."""
         parts = [
             "# Biotech Research Report\n",
-            f"**Query:** {query}\n",
+            f"**Query:** {data.query}\n",
         ]
 
-        # Add resolution warning if present
-        if resolution_warning:
-            parts.append(f"\n> **Note:** {resolution_warning}\n")
+        if data.resolution_warning:
+            parts.append(f"\n**Note:** {data.resolution_warning}\n")
 
         parts.append("---\n")
 
-        # Literature section
         parts.append("## Literature Evidence\n")
-        parts.append(lit_summary)
+        parts.append(data.lit_summary)
         parts.append("\n---\n")
 
-        # Structure section
         parts.append("## Computational Analysis\n")
-        if pdb_ids:
-            parts.append(f"**Analyzed structures:** {', '.join(pdb_ids)}\n")
-        parts.append(struct_summary)
+        if data.pdb_ids:
+            parts.append(f"**Analyzed structures:** {', '.join(data.pdb_ids)}\n")
+        parts.append(data.struct_summary)
         parts.append("\n---\n")
 
-        # Drug discovery section (if present)
-        if drug_summary:
-            parts.append(drug_summary)
+        if data.drug_summary:
+            parts.append(data.drug_summary)
             parts.append("\n---\n")
 
-        # Mutations section
-        if mutations:
+        if data.mutations:
             parts.append("## Mutations Found in Literature\n")
-            parts.append(f"**Total mutations identified:** {len(mutations)}\n\n")
-
-            for mut in mutations[:10]:  # Top 10
+            parts.append(f"**Total mutations identified:** {len(data.mutations)}\n\n")
+            for mut in data.mutations[:10]:
                 parts.append(f"- **{mut.original}{mut.position}{mut.mutant}** ({mut.source})\n")
-
-            if len(mutations) > 10:
-                parts.append(f"\n*...and {len(mutations) - 10} more*\n")
+            if len(data.mutations) > 10:
+                parts.append(f"\n*...and {len(data.mutations) - 10} more*\n")
             parts.append("\n---\n")
 
-        # Insights section
         parts.append("## Synthesis & Insights\n")
 
-        has_data = lit_count > 0 or pdb_ids or drug_insights
-
-        if has_data:
-            sources = []
-            if lit_count > 0:
-                sources.append("literature evidence")
-            if pdb_ids:
-                sources.append("structural analysis")
-            if drug_insights:
-                sources.append("drug discovery data")
-
+        sources = self._evidence_sources(data)
+        if sources:
             parts.append(f"This analysis combines **{', '.join(sources)}**.\n\n")
 
-            if insights:
+            if data.insights:
                 parts.append("### Mutation-Structure Cross-Reference\n")
-                for insight in insights[:5]:  # Top 5 insights
+                for insight in data.insights[:5]:
                     parts.append(f"{insight.recommendation}\n\n")
 
             parts.append("### Key Findings\n")
-            if lit_count > 0:
-                parts.append(
-                    "- Literature provides context on known mutations and stability factors\n"
-                )
-            if pdb_ids:
-                parts.append(
-                    "- Structural analysis identifies flexible regions that may be targets\n"
-                )
-            if drug_insights:
-                potent_drugs = [
-                    d
-                    for d in drug_insights
-                    if hasattr(d, "potency_class") and "potent" in d.potency_class
-                ]
-                parts.append(
-                    f"- Found {len(drug_insights)} compounds, {len(potent_drugs)} are potent inhibitors\n"
-                )
-
+            for finding in self._key_findings(data):
+                parts.append(f"- {finding}\n")
         else:
             parts.append("Insufficient data for synthesis.\n")
 
-        # Experiment suggestions
-        if experiment_suggestions:
-            parts.append("\n---\n")
-            parts.append(experiment_suggestions)
+        parts.append("\n---\n")
+        if data.experiment_suggestions:
+            parts.append(data.experiment_suggestions)
         else:
-            # Fallback simple recommendations
-            parts.append("\n---\n")
             parts.append("## Recommendations for Further Research\n")
-
-            rec_num = 1
-
-            if mutations and pdb_ids:
-                hinge_mutations = [i for i in insights if i.is_hinge_residue]
-                stable_mutations = [i for i in insights if not i.in_flexible_region]
-
-                if stable_mutations:
-                    parts.append(
-                        f"{rec_num}. **Stabilizing candidates:** {len(stable_mutations)} mutations in stable regions\n"
-                    )
-                    rec_num += 1
-                if hinge_mutations:
-                    parts.append(
-                        f"{rec_num}. **Dynamics-altering:** {len(hinge_mutations)} mutations at hinge positions\n"
-                    )
-                    rec_num += 1
-
-            if drug_insights:
-                parts.append(
-                    f"{rec_num}. Investigate top potent compounds for selectivity profiling\n"
-                )
-                rec_num += 1
-                parts.append(
-                    f"{rec_num}. Consider structure-activity relationship (SAR) analysis\n"
-                )
-                rec_num += 1
-
-            if pdb_ids:
-                parts.append(f"{rec_num}. Consider MD simulations to validate predicted effects\n")
-                rec_num += 1
-
-            parts.append(f"{rec_num}. Experimental validation recommended\n")
+            for i, recommendation in enumerate(self._fallback_recommendations(data), 1):
+                parts.append(f"{i}. {recommendation}\n")
 
         return "\n".join(parts)

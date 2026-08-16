@@ -98,7 +98,7 @@ pip install -e ".[dev]"
 
 ### Docker
 
-Avoids the pain of building ProDy, RDKit, and torch-geometric natively:
+Avoids building ProDy and its scientific stack natively:
 
 ```bash
 docker build -t biotech-accelerator .
@@ -126,6 +126,7 @@ UniProt, RCSB PDB, and ChEMBL require no API key.
 import asyncio
 from biotech_accelerator.graph.biotech_graph import run_research
 
+
 async def main():
     # Stability research
     result = await run_research("What mutations stabilize lysozyme?")
@@ -134,6 +135,7 @@ async def main():
     # Drug discovery
     result = await run_research("Find inhibitors for EGFR kinase")
     print(result["final_report"])
+
 
 asyncio.run(main())
 ```
@@ -176,10 +178,12 @@ uv pip install -e .
 
 # Launch Claude Code from the repo root — it picks up .mcp.json automatically.
 # Claude Code then exposes these tools under the `mcp__biotech__*` namespace:
-#   search_literature, search_literature_by_protein, resolve_protein,
-#   fetch_structure, run_nma, search_compounds_by_target, get_compound,
-#   get_approved_drugs_for_target, extract_mutations,
-#   cross_reference_mutations, run_research
+#   Literature:  search_literature, search_literature_by_protein
+#   Structures:  resolve_protein, fetch_structure, run_nma, search_structures
+#   Compounds:   search_compounds_by_target, get_compound,
+#                get_approved_drugs_for_target
+#   Analysis:    extract_mutations, cross_reference_mutations, run_research
+#   Cache:       cache_stats, clear_cache
 ```
 
 If you prefer a plain venv (no uv), edit `.mcp.json` to point `command` at

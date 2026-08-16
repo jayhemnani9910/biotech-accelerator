@@ -18,8 +18,6 @@ import asyncio
 import json
 import logging
 import sys
-from dataclasses import asdict, is_dataclass
-from typing import Any
 
 from rich.console import Console
 from rich.markdown import Markdown
@@ -27,6 +25,7 @@ from rich.panel import Panel
 
 from .agents.nodes.structure_analyst import StructureAnalystAgent, analyze_protein_structure
 from .graph.biotech_graph import run_research
+from .utils.serialization import to_jsonable as _to_jsonable
 
 console = Console()
 
@@ -37,26 +36,11 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def _to_jsonable(obj: Any) -> Any:
-    """Recursively convert dataclasses / Paths / enums to JSON-friendly values."""
-    if is_dataclass(obj) and not isinstance(obj, type):
-        return {k: _to_jsonable(v) for k, v in asdict(obj).items()}
-    if isinstance(obj, dict):
-        return {k: _to_jsonable(v) for k, v in obj.items()}
-    if isinstance(obj, (list, tuple)):
-        return [_to_jsonable(v) for v in obj]
-    if hasattr(obj, "value"):  # Enum
-        return obj.value
-    if hasattr(obj, "__fspath__"):  # Path
-        return str(obj)
-    return obj
-
-
 async def _structure_analysis(pdb_id: str, emit_json: bool) -> int:
     result = await analyze_protein_structure(pdb_id)
 
     if emit_json:
-        print(json.dumps(_to_jsonable(result), default=str, indent=2))
+        print(json.dumps(_to_jsonable(result), indent=2))
         return 0 if result.error is None else 1
 
     if result.error:
@@ -81,7 +65,7 @@ async def _full_pipeline(query: str, emit_json: bool) -> int:
     state = await run_research(query)
 
     if emit_json:
-        print(json.dumps(_to_jsonable(state), default=str, indent=2))
+        print(json.dumps(_to_jsonable(state), indent=2))
         return 0 if "error" not in state else 1
 
     if state.get("error"):

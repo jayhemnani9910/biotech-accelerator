@@ -44,19 +44,17 @@ class PDBStructure:
     num_residues: int = 0
     source: ProteinSource = ProteinSource.PDB
 
-    @property
-    def is_high_resolution(self) -> bool:
-        """Check if structure is high resolution (< 2.5 Å)."""
-        return self.resolution is not None and self.resolution < 2.5
-
 
 @dataclass
 class FlexibilityMetrics:
-    """Protein flexibility analysis results."""
+    """Protein flexibility analysis results.
+
+    All positions are deposited residue numbers, not indices into the Ca array.
+    """
 
     mean_fluctuation: float
     max_fluctuation: float
-    flexible_regions: list[tuple[int, int]]  # (start, end) residue indices
+    flexible_regions: list[tuple[int, int]]  # (start, end) residue numbers, inclusive
     rigid_regions: list[tuple[int, int]]
     hinge_residues: list[int]
 
@@ -69,42 +67,10 @@ class NMAResult:
     n_modes: int
     eigenvalues: np.ndarray
     eigenvectors: np.ndarray
-    fluctuations: np.ndarray  # Per-residue fluctuations
+    fluctuations: np.ndarray  # Per-residue fluctuations, in Ca-array order
     collectivity: np.ndarray  # Mode collectivity
     vibrational_entropy: float
     flexibility: FlexibilityMetrics
-
-    def get_mode(self, mode_index: int) -> np.ndarray:
-        """Get eigenvector for a specific mode."""
-        return self.eigenvectors[:, mode_index]
-
-    def get_top_modes(self, n: int = 10) -> list[tuple[int, float, np.ndarray]]:
-        """Get top N modes by collectivity."""
-        indices = np.argsort(self.collectivity)[::-1][:n]
-        return [(i, self.collectivity[i], self.eigenvectors[:, i]) for i in indices]
-
-
-@dataclass
-class MutationPrediction:
-    """Prediction of mutation effect."""
-
-    wild_type: str  # e.g., "A" for Alanine
-    mutant: str  # e.g., "G" for Glycine
-    position: int  # Residue number
-    ddg: float  # Predicted change in stability (kcal/mol)
-    confidence: float  # 0-1 confidence score
-    effect: str  # "stabilizing", "destabilizing", "neutral"
-
-    @property
-    def mutation_string(self) -> str:
-        """Return mutation in standard notation (e.g., A42G)."""
-        return f"{self.wild_type}{self.position}{self.mutant}"
-
-    @classmethod
-    def classify_effect(cls, ddg: float, threshold: float = 1.0) -> str:
-        """Classify mutation effect based on ΔΔG."""
-        if ddg < -threshold:
-            return "stabilizing"
-        elif ddg > threshold:
-            return "destabilizing"
-        return "neutral"
+    # Deposited residue number / chain ID for each entry in `fluctuations`.
+    residue_numbers: list[int] = field(default_factory=list)
+    chain_ids: list[str] = field(default_factory=list)
