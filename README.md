@@ -98,7 +98,7 @@ pip install -e ".[dev]"
 
 ### Docker
 
-Avoids the pain of building ProDy, RDKit, and torch-geometric natively:
+Avoids building ProDy and its scientific stack natively:
 
 ```bash
 docker build -t biotech-accelerator .
@@ -126,6 +126,7 @@ UniProt, RCSB PDB, and ChEMBL require no API key.
 import asyncio
 from biotech_accelerator.graph.biotech_graph import run_research
 
+
 async def main():
     # Stability research
     result = await run_research("What mutations stabilize lysozyme?")
@@ -134,6 +135,7 @@ async def main():
     # Drug discovery
     result = await run_research("Find inhibitors for EGFR kinase")
     print(result["final_report"])
+
 
 asyncio.run(main())
 ```

@@ -27,7 +27,7 @@ pytest -m integration
 ## Style
 
 - Formatter + linter: [ruff](https://docs.astral.sh/ruff/) — config in `pyproject.toml`
-- Python 3.10+, type hints encouraged, pydantic for data models
+- Python 3.10+, type hints encouraged, dataclasses for data models
 - Before pushing: `ruff check . && ruff format --check .`
 
 ## Pull requests
