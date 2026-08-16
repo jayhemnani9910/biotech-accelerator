@@ -12,7 +12,7 @@ from __future__ import annotations
 from typing import Any, Optional
 
 import numpy as np
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 from .adapters.chembl_adapter import ChEMBLAdapter, CompoundNotFoundError
 from .adapters.pdb_adapter import PDBAdapter
@@ -26,8 +26,9 @@ from .ports.sequence import SequenceNotFoundError
 from .ports.structure import StructureNotFoundError
 from .utils.cache import get_cache
 from .utils.serialization import to_jsonable as _serialize
+from .version import __version__
 
-mcp = FastMCP("biotech-accelerator")
+mcp = MCPServer("biotech-accelerator", version=__version__)
 
 
 # --- lazy adapter cache (one instance per process) -------------------------

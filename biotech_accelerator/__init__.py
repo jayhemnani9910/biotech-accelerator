@@ -13,8 +13,7 @@ from .adapters.uniprot_adapter import UniProtAdapter
 from .graph.biotech_graph import BiotechState, build_biotech_graph, run_research
 from .ports.sequence import SequenceNotFoundError
 from .ports.structure import StructureNotFoundError
-
-__version__ = "0.1.0"
+from .version import __version__
 
 __all__ = [
     "BiotechState",

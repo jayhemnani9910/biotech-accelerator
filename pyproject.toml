@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "biotech-accelerator"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Multi-agent AI system for biotech research that reads literature AND runs computational analysis"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -23,10 +23,10 @@ dependencies = [
     "langgraph>=0.2.0",
 
     # MCP server (consumed by Claude Code and other MCP clients).
-    # Capped below 2.0: that release removed mcp.server.fastmcp and replaced it
-    # with mcp.server.mcpserver, which every tool definition here would need
-    # rewriting against. Migrating is its own change.
-    "mcp>=1.9.0,<2.0.0",
+    # 2.x only: the server class moved from mcp.server.fastmcp.FastMCP to
+    # mcp.server.mcpserver.MCPServer, and call_tool returns a CallToolResult
+    # rather than a bare content sequence.
+    "mcp>=2.0.0,<3.0.0",
 
     # Molecular biology — ANM/GNM normal mode analysis
     "prody>=2.0",
@@ -58,6 +58,9 @@ dev = [
 [project.scripts]
 biotech = "biotech_accelerator.main:main"
 biotech-mcp = "biotech_accelerator.mcp_server:main"
+
+[tool.hatch.version]
+path = "biotech_accelerator/version.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["biotech_accelerator"]
