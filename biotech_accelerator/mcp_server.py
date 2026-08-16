@@ -9,9 +9,9 @@ no embedded LLM calls; reasoning happens in the client.
 
 from __future__ import annotations
 
-from dataclasses import asdict, is_dataclass
 from typing import Any, Optional
 
+import numpy as np
 from mcp.server.fastmcp import FastMCP
 
 from .adapters.chembl_adapter import ChEMBLAdapter, CompoundNotFoundError
@@ -21,8 +21,11 @@ from .adapters.uniprot_adapter import UniProtAdapter
 from .agents.nodes.structure_analyst import StructureAnalystAgent
 from .agents.nodes.synthesis import SynthesisAgent
 from .graph.biotech_graph import run_research as run_research_pipeline
+from .ports.literature import Citation
 from .ports.sequence import SequenceNotFoundError
 from .ports.structure import StructureNotFoundError
+from .utils.cache import get_cache
+from .utils.serialization import to_jsonable as _serialize
 
 mcp = FastMCP("biotech-accelerator")
 
@@ -37,26 +40,6 @@ def _adapter(key: str, factory):
     if key not in _adapters:
         _adapters[key] = factory()
     return _adapters[key]
-
-
-def _serialize(obj: Any) -> Any:
-    """Recursively convert dataclasses / iterables to JSON-friendly structures."""
-    if is_dataclass(obj) and not isinstance(obj, type):
-        return {k: _serialize(v) for k, v in asdict(obj).items()}
-    if isinstance(obj, dict):
-        return {k: _serialize(v) for k, v in obj.items()}
-    if isinstance(obj, (list, tuple)):
-        return [_serialize(v) for v in obj]
-    if hasattr(obj, "__dict__") and not isinstance(obj, type):
-        # Enums, pathlib.Path, etc. — fall back to str.
-        try:
-            return {k: _serialize(v) for k, v in vars(obj).items()}
-        except TypeError:
-            return str(obj)
-    # Path, Enum, etc.
-    if hasattr(obj, "value"):
-        return obj.value
-    return obj
 
 
 # --- Literature ------------------------------------------------------------
@@ -129,16 +112,60 @@ async def fetch_structure(pdb_id: str) -> dict:
     return _serialize(structure)
 
 
+def _nma_response(result) -> dict:
+    """Shape an NMA result for an MCP client.
+
+    Everything is sent except the eigenvector matrix, which is 3N x n_modes —
+    around 50,000 floats for a small protein. It is not something a language
+    model can use, and at ~1.5 MB it would crowd out the rest of the client's
+    context. Its shape is reported so the omission is visible rather than silent;
+    the full matrix is available from the Python API via NMAAnalyzer.analyze().
+    """
+    payload = _serialize(result)
+    nma = payload.get("nma_result")
+    if nma is not None:
+        eigenvectors = nma.pop("eigenvectors", None)
+        nma["eigenvectors_shape"] = (
+            list(np.shape(eigenvectors)) if eigenvectors is not None else None
+        )
+        nma["eigenvectors_note"] = (
+            "Omitted — too large for an MCP payload. Use the Python API for the full matrix."
+        )
+    return payload
+
+
 @mcp.tool()
 async def run_nma(pdb_id: str) -> dict:
     """Run Normal Mode Analysis on a PDB structure.
 
-    Returns flexibility profile (mean/max fluctuation), flexible regions,
-    rigid regions, hinge residues, and vibrational entropy. Uses ProDy ANM/GNM.
+    Returns the flexibility profile (mean/max fluctuation), flexible regions,
+    rigid regions, hinge residues and vibrational entropy. Uses ProDy ANM/GNM.
+
+    All residue positions are deposited PDB residue numbers. Per-residue arrays
+    (`fluctuations`) are aligned with `residue_numbers` and `chain_ids`.
     """
     agent: StructureAnalystAgent = _adapter("structure", StructureAnalystAgent)
     result = await agent.analyze_structure(pdb_id)
-    return _serialize(result)
+    return _nma_response(result)
+
+
+@mcp.tool()
+async def search_structures(
+    query: str,
+    max_results: int = 10,
+    resolution_cutoff: Optional[float] = 2.5,
+) -> list[dict]:
+    """Search RCSB PDB for structures by keyword.
+
+    Use when a protein has no UniProt-to-PDB mapping, or to find higher-resolution
+    alternatives to a known entry. Pass resolution_cutoff=None to disable the
+    resolution filter (useful for cryo-EM and NMR entries).
+    """
+    adapter: PDBAdapter = _adapter("pdb", PDBAdapter)
+    results = await adapter.search_structures(
+        query, max_results=max_results, resolution_cutoff=resolution_cutoff
+    )
+    return [_serialize(r) for r in results]
 
 
 # --- Compounds -------------------------------------------------------------
@@ -192,14 +219,7 @@ def extract_mutations(text: str) -> list[dict]:
     (p.V600E) notations. Returns a list of {original, position, mutant} dicts.
     """
     agent = SynthesisAgent()
-
-    class _Fake:
-        def __init__(self, t):
-            self.abstract = t
-            self.title = ""
-            self.pmid = "text"
-
-    muts = agent._extract_mutations_from_literature([_Fake(text)])
+    muts = agent._extract_mutations_from_literature([Citation(pmid="text", abstract=text)])
     return [_serialize(m) for m in muts]
 
 
@@ -249,6 +269,32 @@ async def run_research(query: str) -> dict:
     """
     state = await run_research_pipeline(query)
     return _serialize(state)
+
+
+# --- Cache management ------------------------------------------------------
+
+
+@mcp.tool()
+def cache_stats() -> dict:
+    """Report on the on-disk response cache.
+
+    Returns entry counts (total / valid / expired) and total size in MB. The
+    cache has no eviction, so it grows until something clears it.
+    """
+    return get_cache().stats()
+
+
+@mcp.tool()
+def clear_cache(namespace: Optional[str] = None) -> dict:
+    """Delete cached API responses.
+
+    Pass a namespace ("chembl", "pubmed", "uniprot", "pdb") to clear just that
+    source; omit it to clear everything. Returns how many entries were removed.
+    Structure files in the PDB cache directory are not touched.
+    """
+    cache = get_cache()
+    removed = cache.clear_namespace(namespace) if namespace else cache.clear_all()
+    return {"removed": removed, "namespace": namespace or "*"}
 
 
 def main() -> None:

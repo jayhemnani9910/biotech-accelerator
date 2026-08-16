@@ -6,9 +6,10 @@ literature, structure, and drug discovery data.
 """
 
 import logging
-import re
 from dataclasses import dataclass
 from typing import Any
+
+from ._structural_context import structural_context
 
 logger = logging.getLogger(__name__)
 
@@ -70,12 +71,9 @@ class ExperimentSuggester:
         mutations = state.get("mutations", [])
         drug_insights = state.get("drug_insights", [])
         pdb_ids = state.get("analyzed_pdb_ids", [])
-        struct_summary = state.get("structure_summary", "")
 
-        # Extract flexible regions and hinge residues
-        hinge_residues = self._extract_numbers(struct_summary, "hinge")
-        flexible_regions = self._extract_regions(struct_summary, "flexible")
-        rigid_regions = self._extract_regions(struct_summary, "rigid")
+        # Structural data comes from the typed NMA results, not the summary prose
+        hinge_residues, flexible_regions, rigid_regions = structural_context(state)
 
         # 1. Mutation-based suggestions
         if mutations or hinge_residues:
@@ -266,35 +264,15 @@ class ExperimentSuggester:
 
         return suggestions
 
-    def _extract_numbers(self, text: str, keyword: str) -> list[int]:
-        """Extract numbers after a keyword."""
-        pattern = rf"{keyword}[^:]*:\s*([0-9,\s]+)"
-        match = re.search(pattern, text, re.IGNORECASE)
-        if match:
-            numbers = re.findall(r"\d+", match.group(1))
-            return [int(n) for n in numbers]
-        return []
-
-    def _extract_regions(self, text: str, keyword: str) -> list[tuple[int, int]]:
-        """Extract residue ranges after a keyword."""
-        patterns = [
-            rf"{keyword}[^:]*:\s*residues?\s+(\d+)-(\d+)",
-            rf"\*\*{keyword}[^*]*\*\*[^:]*:\s*(?:residues?\s+)?(\d+)-(\d+)",
-            rf"{keyword}[:\s]+(\d+)-(\d+)",
-        ]
-
-        for pattern_str in patterns:
-            pattern = re.compile(pattern_str, re.IGNORECASE)
-            matches = pattern.findall(text)
-            if matches:
-                return [(int(a), int(b)) for a, b in matches]
-
-        return []
-
     def format_suggestions(self, suggestions: list[ExperimentSuggestion]) -> str:
-        """Format suggestions as markdown."""
+        """Format suggestions as markdown, or "" when there are none.
+
+        Returning a placeholder sentence here instead of an empty string made the
+        caller's `if experiment_suggestions:` always true, which left the report's
+        fallback recommendations unreachable.
+        """
         if not suggestions:
-            return "No specific experiments suggested based on available data."
+            return ""
 
         parts = ["## Suggested Experiments\n"]
 

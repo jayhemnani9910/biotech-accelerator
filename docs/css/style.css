@@ -419,6 +419,18 @@ body {
     font-size: 14px;
 }
 
+/* The terminal replays saved output on a timer; say so rather than letting the
+   animation imply a live run. */
+.demo-disclaimer {
+    flex-basis: 100%;
+    text-align: center;
+    margin: 4px 0 0;
+    color: var(--text-secondary);
+    opacity: 0.75;
+    font-size: 12px;
+    line-height: 1.5;
+}
+
 .demo-btn {
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);

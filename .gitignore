@@ -55,6 +55,10 @@ Thumbs.db
 # Local session transcripts
 chats.md
 
+# Stray reference PDFs dropped in the working tree — the repo ships no PDFs, so
+# this keeps `git add -A` from sweeping one in.
+*.pdf
+
 # Per-machine Claude Code settings (project-level .claude/settings.json is fine)
 .claude/settings.local.json
 

@@ -2,6 +2,7 @@
 
 import gzip
 import logging
+import os
 import re
 from pathlib import Path
 from typing import Optional
@@ -24,9 +25,15 @@ class PDBAdapter(BaseAdapter):
     SEARCH_URL = "https://search.rcsb.org/rcsbsearch/v2/query"
 
     def __init__(self, cache_dir: Optional[Path] = None):
+        """Explicit argument wins, then PDB_CACHE_DIR, then the default."""
         super().__init__()
         if cache_dir is None:
-            cache_dir = Path.home() / ".biotech-accelerator" / "pdb_cache"
+            from_env = os.getenv("PDB_CACHE_DIR")
+            cache_dir = (
+                Path(from_env).expanduser()
+                if from_env
+                else Path.home() / ".biotech-accelerator" / "pdb_cache"
+            )
         self._cache_dir = cache_dir
         self._cache_dir.mkdir(parents=True, exist_ok=True)
 
@@ -108,6 +115,9 @@ class PDBAdapter(BaseAdapter):
                     rcsb_polymer_entity {
                         pdbx_number_of_molecules
                     }
+                    rcsb_polymer_entity_container_identifiers {
+                        auth_asym_ids
+                    }
                     entity_poly {
                         pdbx_seq_one_letter_code_can
                     }
@@ -127,24 +137,37 @@ class PDBAdapter(BaseAdapter):
         except AdapterNotFound:
             return {}
 
-        entry = data.get("data", {}).get("entry")
+        return self._parse_metadata(data)
+
+    @staticmethod
+    def _parse_metadata(data: dict) -> dict:
+        """Pull the fields we expose from an RCSB GraphQL entry response."""
+        entry = (data.get("data") or {}).get("entry")
         if not entry:
             return {}
 
-        info = entry.get("rcsb_entry_info", {})
-        num_residues = 0
-        for entity in entry.get("polymer_entities", []):
-            seq = entity.get("entity_poly", {}).get("pdbx_seq_one_letter_code_can", "")
-            num_residues += len(seq)
+        info = entry.get("rcsb_entry_info") or {}
 
+        num_residues = 0
+        chain_ids: list[str] = []
+        for entity in entry.get("polymer_entities") or []:
+            seq = (entity.get("entity_poly") or {}).get("pdbx_seq_one_letter_code_can", "")
+            num_residues += len(seq or "")
+
+            identifiers = entity.get("rcsb_polymer_entity_container_identifiers") or {}
+            for chain in identifiers.get("auth_asym_ids") or []:
+                # One entity can map to several chains; the same chain must not
+                # appear twice when entities share instances.
+                if chain not in chain_ids:
+                    chain_ids.append(chain)
+
+        resolution = info.get("resolution_combined")
         return {
-            "resolution": info.get("resolution_combined", [None])[0]
-            if info.get("resolution_combined")
-            else None,
+            "resolution": resolution[0] if resolution else None,
             "method": info.get("experimental_method"),
-            "chain_ids": [],
+            "chain_ids": chain_ids,
             "num_residues": num_residues,
-            "title": entry.get("struct", {}).get("title"),
+            "title": (entry.get("struct") or {}).get("title"),
         }
 
     async def search_structures(

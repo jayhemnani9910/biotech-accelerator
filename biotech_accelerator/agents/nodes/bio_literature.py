@@ -12,7 +12,7 @@ from typing import Any, Optional
 
 from ...adapters.pubmed_adapter import PubMedAdapter
 from ...adapters.uniprot_adapter import UniProtAdapter
-from ...ports.literature import Citation, LiteratureSearchResult
+from ...ports.literature import Citation
 
 logger = logging.getLogger(__name__)
 
@@ -251,12 +251,3 @@ class BioLiteratureAgent:
         """Close adapters."""
         await self.pubmed.close()
         await self.uniprot.close()
-
-
-# Convenience function
-async def search_biotech_literature(query: str, max_results: int = 10) -> LiteratureSearchResult:
-    """Quick search for biotech literature."""
-    agent = BioLiteratureAgent()
-    result = await agent.pubmed.search(query, max_results=max_results)
-    await agent.close()
-    return result
