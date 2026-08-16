@@ -22,8 +22,11 @@ dependencies = [
     # Workflow orchestration
     "langgraph>=0.2.0",
 
-    # MCP server (consumed by Claude Code and other MCP clients)
-    "mcp>=1.0.0",
+    # MCP server (consumed by Claude Code and other MCP clients).
+    # Capped below 2.0: that release removed mcp.server.fastmcp and replaced it
+    # with mcp.server.mcpserver, which every tool definition here would need
+    # rewriting against. Migrating is its own change.
+    "mcp>=1.9.0,<2.0.0",
 
     # Molecular biology — ANM/GNM normal mode analysis
     "prody>=2.0",
