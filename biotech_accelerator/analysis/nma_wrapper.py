@@ -72,6 +72,8 @@ class NMAAnalyzer:
         # Parse structure
         logger.info(f"Loading structure: {pdb_path}")
         structure = prody.parsePDB(str(pdb_path))
+        if structure is None:
+            raise ValueError(f"Could not parse any atoms from {pdb_path}")
 
         # Get C-alpha atoms for coarse-grained analysis
         calphas = structure.select("calpha")
@@ -80,6 +82,10 @@ class NMAAnalyzer:
 
         n_atoms = len(calphas)
         logger.info(f"Found {n_atoms} C-alpha atoms")
+        if n_atoms < 3:
+            raise ValueError(
+                f"Need at least 3 C-alpha atoms for NMA, found {n_atoms} in {pdb_path}"
+            )
 
         # Deposited numbering — index i of every array below is resnums[i], which
         # is NOT i itself for any structure with gaps or multiple chains.
@@ -104,13 +110,13 @@ class NMAAnalyzer:
         # Calculate collectivity for each mode
         collectivity = np.array([prody.calcCollectivity(anm[i]) for i in range(len(anm))])
 
-        # Calculate vibrational entropy
-        temp = 300  # Kelvin
+        # Vibrational entropy, harmonic approximation: S_vib = -0.5 * kb * sum(ln λ).
+        # Stiffer modes (larger λ) lower the entropy. ANM eigenvalues are in
+        # arbitrary spring-constant units, so this is a relative score for
+        # comparing structures, not an absolute entropy.
         kb = 0.001987  # kcal/(mol·K)
-
-        # S_vib = kb * sum(ln(eigenvalue))
         positive_eigenvalues = eigenvalues[eigenvalues > 0]
-        vibrational_entropy = kb * temp * np.sum(np.log(positive_eigenvalues))
+        vibrational_entropy = float(-0.5 * kb * np.sum(np.log(positive_eigenvalues)))
 
         # Identify flexible and rigid regions
         flexibility = self._analyze_flexibility(fluctuations, resnums, chain_ids)
@@ -165,8 +171,13 @@ class NMAAnalyzer:
         rigid_mask = normalized < threshold_low
         rigid_regions = self._find_regions(rigid_mask, resnums, chain_ids, min_region_size)
 
-        # Find hinge residues (high gradient in fluctuation)
-        gradient = np.abs(np.gradient(normalized))
+        # Find hinge residues (high gradient in fluctuation). The gradient is taken
+        # per contiguous segment (same chain, consecutive residue numbers), so a
+        # chain break or unresolved gap is not mistaken for a hinge.
+        gradient = np.zeros_like(normalized, dtype=float)
+        for begin, end in self._segments(resnums, chain_ids):
+            if end - begin >= 2:
+                gradient[begin:end] = np.abs(np.gradient(normalized[begin:end]))
         hinge_threshold = np.percentile(gradient, 90)
         hinge_residues = [int(resnums[i]) for i in np.where(gradient > hinge_threshold)[0]]
 
@@ -177,6 +188,19 @@ class NMAAnalyzer:
             rigid_regions=rigid_regions,
             hinge_residues=hinge_residues,
         )
+
+    @staticmethod
+    def _segments(resnums: np.ndarray, chain_ids: np.ndarray) -> list[tuple[int, int]]:
+        """Split the Ca array into contiguous (begin, end_exclusive) index ranges."""
+        segments: list[tuple[int, int]] = []
+        begin = 0
+        for i in range(1, len(resnums)):
+            if resnums[i] != resnums[i - 1] + 1 or chain_ids[i] != chain_ids[i - 1]:
+                segments.append((begin, i))
+                begin = i
+        if len(resnums):
+            segments.append((begin, len(resnums)))
+        return segments
 
     @staticmethod
     def _find_regions(

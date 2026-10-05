@@ -24,21 +24,22 @@ class BiotechDemo {
             btn.addEventListener('click', () => {
                 if (!this.isRunning) {
                     const demoName = btn.dataset.demo;
-                    this.runDemo(demoName);
+                    this.runDemo(demoName, { scroll: true });
                 }
             });
         });
 
-        // Auto-start first demo after a brief delay
+        // Auto-start first demo after a brief delay. It does not scroll: the
+        // visitor may have moved elsewhere on the page by the time it finishes.
         setTimeout(() => {
             this.runDemo('lysozyme');
         }, 500);
     }
 
     /**
-     * Run a demo scenario
+     * Run a demo scenario. `scroll` brings the report into view when it is ready.
      */
-    async runDemo(demoName) {
+    async runDemo(demoName, { scroll = false } = {}) {
         if (this.isRunning) return;
         if (!DEMO_SCENARIOS[demoName]) {
             console.error(`Unknown demo: ${demoName}`);
@@ -76,14 +77,15 @@ class BiotechDemo {
             await this.sleep(500);
 
             // Phase 5: Render report
-            await this.showReport(scenario.report);
+            await this.showReport(scenario.report, scroll);
 
         } catch (error) {
             console.error('Demo error:', error);
             this.terminal.addOutputLine(`Error: ${error.message}`, 'warning');
+        } finally {
+            this.isRunning = false;
+            this.updateButtonStates(demoName);
         }
-
-        this.isRunning = false;
     }
 
     /**
@@ -98,21 +100,24 @@ class BiotechDemo {
     /**
      * Show the research report
      */
-    async showReport(markdownContent) {
-        // Parse markdown
+    async showReport(markdownContent, scroll) {
         if (typeof marked !== 'undefined') {
             this.reportContent.innerHTML = marked.parse(markdownContent);
         } else {
-            // Fallback: simple markdown rendering
-            this.reportContent.innerHTML = this.simpleMarkdown(markdownContent);
+            // marked failed to load: show the markdown source as plain text
+            const pre = document.createElement('pre');
+            pre.className = 'report-raw';
+            pre.textContent = markdownContent;
+            this.reportContent.replaceChildren(pre);
         }
 
         // Show report section with animation
         this.reportSection.classList.add('visible');
 
-        // Scroll to report
-        await this.sleep(300);
-        this.reportSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        if (scroll) {
+            await this.sleep(300);
+            this.reportSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
     }
 
     /**
@@ -121,27 +126,6 @@ class BiotechDemo {
     hideReport() {
         this.reportSection.classList.remove('visible');
         this.reportContent.innerHTML = '';
-    }
-
-    /**
-     * Simple markdown fallback
-     */
-    simpleMarkdown(text) {
-        return text
-            .replace(/^### (.*$)/gm, '<h3>$1</h3>')
-            .replace(/^## (.*$)/gm, '<h2>$1</h2>')
-            .replace(/^# (.*$)/gm, '<h1>$1</h1>')
-            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-            .replace(/\*(.*?)\*/g, '<em>$1</em>')
-            .replace(/`([^`]+)`/g, '<code>$1</code>')
-            .replace(/^- (.*$)/gm, '<li>$1</li>')
-            .replace(/^(\d+)\. (.*$)/gm, '<li>$2</li>')
-            .replace(/\n\n/g, '</p><p>')
-            .replace(/^---$/gm, '<hr>')
-            .replace(/\|(.+)\|/g, (match) => {
-                const cells = match.split('|').filter(c => c.trim());
-                return '<tr>' + cells.map(c => `<td>${c.trim()}</td>`).join('') + '</tr>';
-            });
     }
 
     /**

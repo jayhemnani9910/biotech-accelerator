@@ -12,7 +12,7 @@ from defusedxml.common import DefusedXmlException
 from defusedxml.ElementTree import fromstring as defused_fromstring
 
 from ..ports.literature import Citation, LiteratureSearchResult
-from .base import AdapterError, AdapterParseError, BaseAdapter
+from .base import AdapterError, BaseAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -125,7 +125,9 @@ class PubMedAdapter(BaseAdapter):
         try:
             root = self._parse_xml(response.content)
         except (ET.ParseError, DefusedXmlException) as e:
-            raise AdapterParseError(url, f"Invalid XML: {e}") from e
+            # Same contract as the other failure paths in search(): log, return nothing.
+            logger.error(f"Invalid XML from {url}: {e}")
+            return []
 
         citations = []
         for article in root.findall(".//PubmedArticle"):
@@ -216,8 +218,9 @@ class PubMedAdapter(BaseAdapter):
 
             pmid = self._text_of(medline.find(".//PMID")) or None
 
+            # Only the article's own ID list; ReferenceList carries cited papers' DOIs.
             doi = None
-            for id_elem in article.findall(".//ArticleId"):
+            for id_elem in article.findall("./PubmedData/ArticleIdList/ArticleId"):
                 if id_elem.get("IdType") == "doi":
                     doi = self._text_of(id_elem) or None
                     break

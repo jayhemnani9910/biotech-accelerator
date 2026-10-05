@@ -18,14 +18,13 @@ from langgraph.graph.state import CompiledStateGraph
 
 from ..agents.nodes.bio_literature import BioLiteratureAgent
 from ..agents.nodes.drug_binding import DrugBindingAgent
-from ..agents.nodes.structure_analyst import StructureAnalystAgent
+from ..agents.nodes.structure_analyst import PDB_ID_PATTERN, StructureAnalystAgent
 from ..agents.nodes.synthesis import SynthesisAgent
 from ..domain.vocabulary import EXCLUDED_TOKENS
 
 logger = logging.getLogger(__name__)
 
 # Pre-compiled patterns
-_PDB_ID_PATTERN = re.compile(r"\b([0-9][A-Z0-9]{3})\b", re.IGNORECASE)
 _GENE_PATTERN = re.compile(r"\b([A-Z]{2,6})\b")
 
 # Shared with DrugBindingAgent._extract_targets, which pulls candidate symbols
@@ -98,15 +97,16 @@ async def parse_query_node(state: BiotechState) -> dict[str, Any]:
     query_lower = query.lower()
 
     # Extract PDB IDs via regex (no need to instantiate full agent)
-    pdb_ids = list(dict.fromkeys(m.upper() for m in _PDB_ID_PATTERN.findall(query)))
+    pdb_ids = list(dict.fromkeys(m.upper() for m in PDB_ID_PATTERN.findall(query)))
 
     # Extract protein names and map to UniProt IDs
     protein_names = []
     uniprot_ids = []
 
-    # Check known protein names from dictionary
+    # Check known protein names from dictionary. Whole words (plural allowed):
+    # as a substring, "actin" is in "interacting".
     for protein, uniprot in PROTEIN_NAME_MAP.items():
-        if protein in query_lower:
+        if re.search(rf"\b{re.escape(protein)}s?\b", query_lower):
             protein_names.append(protein)
             if uniprot:  # Only add if we have a mapping
                 uniprot_ids.append(uniprot)
@@ -131,12 +131,12 @@ async def parse_query_node(state: BiotechState) -> dict[str, Any]:
         "drug",
         "compound",
         "bind",
+        "binding",
         "agonist",
         "antagonist",
         "therapeutic",
         "treatment",
         "ic50",
-        "ki",
         "affinity",
         "chembl",
         "potency",
@@ -159,7 +159,8 @@ async def parse_query_node(state: BiotechState) -> dict[str, Any]:
         "target",
         "receptor",
     ]
-    has_drug_query = any(kw in query_lower for kw in drug_keywords)
+    # Whole words (plural allowed): as substrings, "trial" is in "mitochondrial".
+    has_drug_query = any(re.search(rf"\b{re.escape(kw)}s?\b", query_lower) for kw in drug_keywords)
 
     logger.info(
         f"Parsed query - PDB IDs: {pdb_ids}, Proteins: {protein_names}, Drug query: {has_drug_query}"
@@ -185,8 +186,9 @@ async def resolve_proteins_node(state: BiotechState) -> dict[str, Any]:
         logger.info("PDB IDs already provided, skipping UniProt resolution")
         return {"current_phase": "proteins_resolved"}
 
-    # If we have protein names but no PDB IDs, try to resolve via UniProt
-    if protein_names and not pdb_ids:
+    # Resolve protein names via UniProt; their structures are added after any
+    # PDB IDs given in the query.
+    if protein_names:
         from ..adapters.uniprot_adapter import UniProtAdapter
 
         adapter = UniProtAdapter()

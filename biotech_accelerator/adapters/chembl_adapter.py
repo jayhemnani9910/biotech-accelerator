@@ -24,6 +24,10 @@ class ChEMBLAdapter(BaseAdapter):
 
     BASE_URL = "https://www.ebi.ac.uk/chembl/api/data"
 
+    # ChEMBL's standard_type filter is case-sensitive, so map any casing the
+    # caller uses to ChEMBL's own spelling.
+    _ACTIVITY_TYPES = {t.upper(): t for t in ("IC50", "Ki", "Kd", "EC50")}
+
     def __init__(self):
         super().__init__()
         self._cache = get_cache()
@@ -85,14 +89,19 @@ class ChEMBLAdapter(BaseAdapter):
 
         target_chembl_id = target.get("target_chembl_id")
         target_pref_name = target.get("pref_name", target_name)
+        # Activity rows carry no components; the UniProt accession lives on the target.
+        components = target.get("target_components") or []
+        target_uniprot = components[0].get("accession") if components else None
 
         params = {
             "target_chembl_id": target_chembl_id,
             "limit": max_results,
             "order_by": "standard_value",
+            # Ranking by standard_value only makes sense within one unit.
+            "standard_units": "nM",
         }
         if activity_type:
-            params["standard_type"] = activity_type.upper()
+            params["standard_type"] = self._ACTIVITY_TYPES.get(activity_type.upper(), activity_type)
         else:
             params["standard_type__in"] = "IC50,Ki,Kd,EC50"
 
@@ -115,9 +124,7 @@ class ChEMBLAdapter(BaseAdapter):
                 BioactivityData(
                     compound=compound,
                     target_name=target_pref_name,
-                    target_uniprot=act.get("target_components", [{}])[0].get("accession")
-                    if target.get("target_components")
-                    else None,
+                    target_uniprot=target_uniprot,
                     activity_type=act.get("standard_type", ""),
                     activity_value=float(act.get("standard_value", 0)),
                     activity_unit=act.get("standard_units", "nM"),
@@ -210,12 +217,26 @@ class ChEMBLAdapter(BaseAdapter):
             return []
 
         compounds = []
+        seen: set[str] = set()
         for mech in data.get("mechanisms", []):
             chembl_id = mech.get("molecule_chembl_id")
-            if chembl_id:
-                try:
-                    compound = await self._get_by_chembl_id(chembl_id)
-                    compounds.append(compound)
-                except (CompoundNotFoundError, AdapterError):
-                    continue
+            # One molecule can have several mechanism records.
+            if not chembl_id or chembl_id in seen:
+                continue
+            seen.add(chembl_id)
+            try:
+                molecule = await self._get_json(f"{self.BASE_URL}/molecule/{chembl_id}.json")
+            except AdapterError:
+                continue
+            # Mechanisms also cover clinical-stage and withdrawn molecules.
+            if self._is_approved(molecule):
+                compounds.append(self._parse_molecule(molecule))
         return compounds[:max_results]
+
+    @staticmethod
+    def _is_approved(molecule: dict) -> bool:
+        """True if the molecule has reached phase 4 (approved)."""
+        try:
+            return float(molecule.get("max_phase") or 0) == 4
+        except (TypeError, ValueError):
+            return False

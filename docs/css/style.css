@@ -46,7 +46,7 @@ body {
     align-items: center;
     padding: 20px 0;
     border-bottom: 1px solid var(--border-color);
-    margin-bottom: 30px;
+    margin-bottom: 20px;
 }
 
 .logo {
@@ -220,10 +220,9 @@ body {
 
 .pipeline {
     display: flex;
-    align-items: flex-start;
+    align-items: stretch;
     justify-content: center;
     gap: 8px;
-    flex-wrap: wrap;
     padding: 20px;
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
@@ -231,16 +230,16 @@ body {
 }
 
 .pipeline-node {
+    flex: 1 1 0;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 16px 20px;
+    padding: 14px 8px;
     background: var(--bg-tertiary);
     border: 2px solid var(--border-color);
     border-radius: 12px;
-    min-width: 100px;
     transition: all 0.3s;
-    position: relative;
 }
 
 .pipeline-node.active {
@@ -259,6 +258,16 @@ body {
     font-weight: bold;
 }
 
+/* A stage the scenario does not use, e.g. CHEMBL for a non-drug query */
+.pipeline-node.skipped {
+    opacity: 0.45;
+    border-style: dashed;
+}
+
+.pipeline-node.skipped .node-output {
+    color: var(--text-muted);
+}
+
 .node-icon {
     font-size: 24px;
     margin-bottom: 8px;
@@ -273,31 +282,39 @@ body {
 
 .node-status {
     height: 20px;
-    margin-top: 8px;
+    margin-top: 4px;
 }
 
+/* Stage result, kept inside the node so it stays within the card */
 .node-output {
-    position: absolute;
-    bottom: -40px;
-    left: 50%;
-    transform: translateX(-50%);
+    margin-top: 6px;
+    min-height: 2.8em;
+    max-width: 100%;
     font-size: 11px;
+    line-height: 1.4;
+    text-align: center;
+    overflow-wrap: anywhere;
     color: var(--accent-cyan);
-    white-space: nowrap;
     opacity: 0;
     transition: opacity 0.3s;
     font-family: var(--font-mono);
 }
 
 .pipeline-node.active .node-output,
-.pipeline-node.complete .node-output {
+.pipeline-node.complete .node-output,
+.pipeline-node.skipped .node-output {
     opacity: 1;
 }
 
 .pipeline-arrow {
+    flex: none;
+    align-self: center;
     color: var(--text-muted);
-    font-size: 24px;
-    padding-top: 20px;
+    font-size: 20px;
+}
+
+.pipeline-arrow::before {
+    content: '→';
 }
 
 /* Loading spinner */
@@ -334,6 +351,14 @@ body {
     padding: 24px;
     max-height: 500px;
     overflow-y: auto;
+}
+
+/* Fallback when the markdown renderer fails to load */
+.report-raw {
+    white-space: pre-wrap;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--text-secondary);
 }
 
 .report-content {
@@ -408,9 +433,9 @@ body {
     align-items: center;
     justify-content: center;
     gap: 12px;
-    padding: 24px 0;
-    margin-top: 20px;
-    border-top: 1px solid var(--border-color);
+    padding: 0 0 20px;
+    margin-bottom: 24px;
+    border-bottom: 1px solid var(--border-color);
     flex-wrap: wrap;
 }
 
@@ -419,8 +444,8 @@ body {
     font-size: 14px;
 }
 
-/* The terminal replays saved output on a timer; say so rather than letting the
-   animation imply a live run. */
+/* The terminal plays hand-written example output on a timer; say so rather
+   than letting the animation imply a live run. */
 .demo-disclaimer {
     flex-basis: 100%;
     text-align: center;
@@ -461,10 +486,62 @@ body {
 }
 
 /* Responsive */
+/* Seven stages do not fit side by side below this width: stack them */
+@media (max-width: 900px) {
+    .pipeline {
+        flex-direction: column;
+        gap: 4px;
+        padding: 12px;
+    }
+
+    .pipeline-node {
+        flex: none;
+        flex-direction: row;
+        gap: 12px;
+        padding: 10px 14px;
+    }
+
+    .node-icon {
+        font-size: 20px;
+        margin-bottom: 0;
+    }
+
+    .node-label {
+        flex: none;
+        width: 96px;
+    }
+
+    .node-output {
+        flex: 1;
+        min-height: 0;
+        margin-top: 0;
+        text-align: right;
+    }
+
+    .node-status {
+        flex: none;
+        width: 20px;
+        margin-top: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .pipeline-arrow {
+        font-size: 16px;
+        line-height: 1;
+    }
+
+    .pipeline-arrow::before {
+        content: '↓';
+    }
+}
+
 @media (max-width: 768px) {
     .header {
         flex-direction: column;
-        gap: 16px;
+        gap: 12px;
+        padding: 12px 0;
         text-align: center;
     }
 
@@ -472,24 +549,17 @@ body {
         font-size: 20px;
     }
 
-    .pipeline {
-        gap: 4px;
-    }
-
-    .pipeline-node {
-        min-width: 70px;
-        padding: 12px;
-    }
-
-    .pipeline-arrow {
-        font-size: 18px;
-    }
-
-    .node-output {
-        display: none;
-    }
-
     .demo-selector {
-        flex-direction: column;
+        gap: 8px;
+    }
+
+    .demo-label {
+        flex-basis: 100%;
+        text-align: center;
+    }
+
+    .demo-btn {
+        padding: 8px 12px;
+        font-size: 13px;
     }
 }

@@ -18,9 +18,14 @@ class UniProtAdapter(BaseAdapter):
     def _extract_protein_name(data: dict) -> str:
         """Extract protein name from UniProt entry data."""
         if "proteinDescription" in data:
-            rec_name = data["proteinDescription"].get("recommendedName", {})
+            description = data["proteinDescription"]
+            rec_name = description.get("recommendedName", {})
             if rec_name:
                 return rec_name.get("fullName", {}).get("value", "")
+            # Unreviewed (TrEMBL) entries carry submissionNames instead.
+            submission_names = description.get("submissionNames") or []
+            if submission_names:
+                return submission_names[0].get("fullName", {}).get("value", "")
         return ""
 
     @staticmethod
@@ -79,7 +84,7 @@ class UniProtAdapter(BaseAdapter):
         """Search for protein sequences."""
         search_query = query
         if organism:
-            search_query = f"{query} AND organism_name:{organism}"
+            search_query = f'{query} AND organism_name:"{organism}"'
 
         try:
             data = await self._get_json(

@@ -11,6 +11,7 @@ import unicodedata
 from dataclasses import dataclass
 from typing import Any, Optional
 
+from ...adapters.base import AdapterError
 from ...adapters.chembl_adapter import ChEMBLAdapter
 from ...domain.compound_models import CompoundInfo
 from ...domain.vocabulary import EXCLUDED_TOKENS
@@ -105,33 +106,50 @@ class DrugBindingAgent:
         target_summaries = []
 
         for target in targets:
-            # Get bioactivity data from ChEMBL
-            activities = await self.chembl.search_by_target(
-                target,
-                activity_type="IC50",
-                max_results=15,
-            )
-
-            # Also try Ki if IC50 has few results
-            if len(activities) < 5:
-                ki_activities = await self.chembl.search_by_target(
+            # One failing target must not discard what earlier targets returned.
+            try:
+                # Get bioactivity data from ChEMBL
+                activities = await self.chembl.search_by_target(
                     target,
-                    activity_type="Ki",
-                    max_results=10,
+                    activity_type="IC50",
+                    max_results=15,
                 )
-                activities.extend(ki_activities)
+
+                # Also try Ki if IC50 has few results
+                if len(activities) < 5:
+                    ki_activities = await self.chembl.search_by_target(
+                        target,
+                        activity_type="Ki",
+                        max_results=10,
+                    )
+                    activities.extend(ki_activities)
+            except AdapterError as e:
+                logger.warning(f"ChEMBL lookup failed for {target}: {e}")
+                target_summaries.append(f"ChEMBL lookup failed for {target}: {e}")
+                continue
 
             if not activities:
                 target_summaries.append(f"No bioactivity data found for {target}")
                 continue
 
+            # Approval comes from ChEMBL max_phase; activity rows do not carry it
+            try:
+                approved = await self.chembl.get_approved_drugs_for_target(target, max_results=20)
+            except AdapterError as e:
+                logger.warning(f"ChEMBL approved-drug lookup failed for {target}: {e}")
+                approved = []
+            approved_ids = {c.chembl_id for c in approved if c.chembl_id}
+
             # Analyze activities
-            insights = self._analyze_activities(activities, target)
+            insights = self._analyze_activities(activities, target, approved_ids)
             all_insights.extend(insights)
 
             # Generate summary for this target
             summary = self._generate_target_summary(target, insights)
             target_summaries.append(summary)
+
+        # Each target's list is sorted on its own; rank across targets before taking the top 10.
+        all_insights.sort(key=self._potency_key)
 
         # Build overall drug analysis summary
         drug_summary = self._generate_drug_summary(targets, all_insights, target_summaries)
@@ -164,9 +182,10 @@ class DrugBindingAgent:
 
         query_lower = query.lower()
 
-        # Check for known targets
+        # Check for known targets. Whole words only: as substrings, "abl" is in
+        # "available", "met" in "method" and "alk" in "walk".
         for key, (symbol, _name) in self.TARGET_MAP.items():
-            if key in query_lower:
+            if re.search(rf"\b{re.escape(key)}\b", query_lower):
                 add(symbol)
 
         # Add protein names that look like targets
@@ -193,12 +212,16 @@ class DrugBindingAgent:
         self,
         activities: list[BioactivityData],
         target: str,
+        approved_ids: frozenset[str] | set[str] = frozenset(),
     ) -> list[DrugInsight]:
         """Analyze bioactivity data and generate insights.
 
         Rows whose unit cannot be put on the nanomolar scale are dropped rather
         than ranked — comparing a raw value in µg/mL against one in nM produces
         a confident ordering with no meaning behind it.
+
+        A compound measured more than once (e.g. an IC50 and a Ki row) is kept
+        once, at its most potent measurement, so it is not counted twice.
         """
         ranked: list[tuple[float, DrugInsight]] = []
 
@@ -221,7 +244,7 @@ class DrugBindingAgent:
                         activity_value=act.activity_value,
                         activity_unit=act.activity_unit,
                         potency_class=self._classify_potency(act.activity_value, act.activity_unit),
-                        is_approved_drug=self._is_likely_drug(act.compound),
+                        is_approved_drug=act.compound.chembl_id in approved_ids,
                     ),
                 )
             )
@@ -229,7 +252,22 @@ class DrugBindingAgent:
         # Sort on the common nM scale, not on the raw value (lower = more potent).
         ranked.sort(key=lambda pair: pair[0])
 
-        return [insight for _, insight in ranked]
+        insights: list[DrugInsight] = []
+        seen: set[str] = set()
+        for _, insight in ranked:
+            chembl_id = insight.compound.chembl_id
+            if chembl_id:
+                if chembl_id in seen:
+                    continue
+                seen.add(chembl_id)
+            insights.append(insight)
+        return insights
+
+    @classmethod
+    def _potency_key(cls, insight: DrugInsight) -> float:
+        """Sort key on the nM scale (lower = more potent)."""
+        nanomolar = cls._to_nanomolar(insight.activity_value, insight.activity_unit)
+        return float("inf") if nanomolar is None else nanomolar
 
     @staticmethod
     def _to_nanomolar(value: float, unit: str) -> Optional[float]:
@@ -259,38 +297,6 @@ class DrugBindingAgent:
             return "moderate (100-1000 nM)"
         else:
             return "weak (>1 µM)"
-
-    def _is_likely_drug(self, compound: CompoundInfo) -> bool:
-        """Check if compound is likely an approved drug."""
-        if not compound.name:
-            return False
-
-        name = compound.name.lower()
-
-        # Drug name patterns
-        drug_suffixes = [
-            "ib",
-            "mab",
-            "nib",
-            "tinib",
-            "zumab",
-            "ximab",
-            "cin",
-            "mycin",
-            "cillin",
-            "pril",
-            "sartan",
-            "olol",
-            "dipine",
-            "afil",
-            "prazole",
-        ]
-
-        for suffix in drug_suffixes:
-            if name.endswith(suffix):
-                return True
-
-        return False
 
     def _generate_target_summary(
         self,

@@ -10,7 +10,6 @@ This tests:
 """
 
 import asyncio
-import sys
 
 import pytest
 from rich.console import Console
@@ -38,40 +37,30 @@ async def test_full_pipeline():
     console.print(f"\n[bold]Query:[/bold] {query}\n")
     console.print("[dim]Running pipeline: parse → literature → structure → synthesis[/dim]\n")
 
-    try:
-        # Run the research
-        final_state = await run_research(query)
+    # Run the research
+    final_state = await run_research(query)
 
-        # Display results
-        console.print("[bold green]Pipeline Complete![/bold green]\n")
+    # Display results
+    console.print("[bold green]Pipeline Complete![/bold green]\n")
 
-        # Show phases completed
-        console.print(f"[dim]Phase: {final_state.get('current_phase', 'unknown')}[/dim]")
-        console.print(
-            f"[dim]Literature papers found: {final_state.get('literature_count', 0)}[/dim]"
+    # Show phases completed
+    console.print(f"[dim]Phase: {final_state.get('current_phase', 'unknown')}[/dim]")
+    console.print(f"[dim]Literature papers found: {final_state.get('literature_count', 0)}[/dim]")
+    console.print(f"[dim]Structures analyzed: {final_state.get('analyzed_pdb_ids', [])}[/dim]\n")
+
+    assert "error" not in final_state, final_state.get("error")
+    assert final_state.get("current_phase") == "done"
+    report = final_state.get("final_report")
+    assert report
+
+    # Show final report
+    console.print(
+        Panel(
+            Markdown(report),
+            title="[bold green]Research Report[/bold green]",
+            border_style="green",
         )
-        console.print(
-            f"[dim]Structures analyzed: {final_state.get('analyzed_pdb_ids', [])}[/dim]\n"
-        )
-
-        # Show final report
-        report = final_state.get("final_report", "No report generated")
-        console.print(
-            Panel(
-                Markdown(report),
-                title="[bold green]Research Report[/bold green]",
-                border_style="green",
-            )
-        )
-
-        return True
-
-    except Exception as e:
-        console.print(f"[red]Pipeline failed: {e}[/red]")
-        import traceback
-
-        traceback.print_exc()
-        return False
+    )
 
 
 async def test_literature_only():
@@ -82,11 +71,14 @@ async def test_literature_only():
 
     adapter = PubMedAdapter()
 
-    result = await adapter.search_by_protein(
-        "lysozyme",
-        topic="mutation stability",
-        max_results=5,
-    )
+    try:
+        result = await adapter.search_by_protein(
+            "lysozyme",
+            topic="mutation stability",
+            max_results=5,
+        )
+    finally:
+        await adapter.close()
 
     console.print(f"Found {result.total_count} papers (showing {len(result.citations)})\n")
 
@@ -96,8 +88,7 @@ async def test_literature_only():
         console.print(f"   {citation.journal}")
         console.print(f"   [link={citation.url}]PubMed[/link]\n")
 
-    await adapter.close()
-    return True
+    assert result.citations
 
 
 async def test_uniprot():
@@ -111,22 +102,19 @@ async def test_uniprot():
     # Look up lysozyme (P00698)
     try:
         info = await adapter.get_sequence("P00698")
-
-        console.print(f"[bold]Protein:[/bold] {info.name}")
-        console.print(f"[bold]Organism:[/bold] {info.organism}")
-        console.print(f"[bold]Gene:[/bold] {info.gene_name}")
-        console.print(f"[bold]Length:[/bold] {info.length} amino acids")
-        console.print(f"[bold]PDB structures:[/bold] {', '.join(info.pdb_ids[:5])}...")
-        if info.function:
-            console.print(f"[bold]Function:[/bold] {info.function[:200]}...")
-
+    finally:
         await adapter.close()
-        return True
 
-    except Exception as e:
-        console.print(f"[red]UniProt lookup failed: {e}[/red]")
-        await adapter.close()
-        return False
+    console.print(f"[bold]Protein:[/bold] {info.name}")
+    console.print(f"[bold]Organism:[/bold] {info.organism}")
+    console.print(f"[bold]Gene:[/bold] {info.gene_name}")
+    console.print(f"[bold]Length:[/bold] {info.length} amino acids")
+    console.print(f"[bold]PDB structures:[/bold] {', '.join(info.pdb_ids[:5])}...")
+    if info.function:
+        console.print(f"[bold]Function:[/bold] {info.function[:200]}...")
+
+    assert info.uniprot_id == "P00698"
+    assert info.length > 0
 
 
 async def main():
@@ -142,14 +130,11 @@ async def main():
     await test_literature_only()
 
     # Test full pipeline
-    success = await test_full_pipeline()
+    await test_full_pipeline()
 
-    if success:
-        console.print("\n" + "=" * 60)
-        console.print(" [bold green]All tests passed![/bold green]")
-        console.print("=" * 60)
-    else:
-        sys.exit(1)
+    console.print("\n" + "=" * 60)
+    console.print(" [bold green]All tests passed![/bold green]")
+    console.print("=" * 60)
 
 
 if __name__ == "__main__":

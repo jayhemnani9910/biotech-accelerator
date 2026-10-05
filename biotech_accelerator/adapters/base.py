@@ -7,7 +7,7 @@ from json import JSONDecodeError
 from typing import Optional
 
 import httpx
-from httpx import ConnectError, HTTPStatusError, Response, TimeoutException
+from httpx import HTTPStatusError, Response, TimeoutException, TransportError
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,7 @@ class AdapterError(Exception):
 
 
 class AdapterTimeout(AdapterError):
-    """Request timed out or connection failed after exhausting retries."""
+    """Request timed out or hit a network error after exhausting retries."""
 
 
 class AdapterNotFound(AdapterError):
@@ -81,9 +81,10 @@ class BaseAdapter:
     async def _request(self, method: str, url: str, **kwargs) -> Response:
         """HTTP request with retry and typed error reporting.
 
-        Retries on connect errors, timeouts, and transient status codes
-        (429, 5xx). 404 raises AdapterNotFound immediately. Other non-2xx
-        responses raise AdapterHTTPError without retry.
+        Retries on network errors (connect, read, write, protocol), timeouts,
+        and transient status codes (429, 5xx). 404 raises AdapterNotFound
+        immediately. Other non-2xx responses raise AdapterHTTPError without
+        retry.
         """
         last_transient: Optional[Exception] = None
         last_status: Optional[int] = None
@@ -94,11 +95,15 @@ class BaseAdapter:
                 response = await self._client.request(method, url, **kwargs)
             except TimeoutException as e:
                 last_transient = e
+                last_status = None
                 logger.warning(f"Timeout on {url} (attempt {attempt + 1}/{self._max_retries})")
-            except ConnectError as e:
+            except TransportError as e:
+                # Connect, read, write and protocol errors (e.g. a dropped
+                # keep-alive connection) are all transient network failures.
                 last_transient = e
+                last_status = None
                 logger.warning(
-                    f"Connect failed on {url} (attempt {attempt + 1}/{self._max_retries}): {e}"
+                    f"Network error on {url} (attempt {attempt + 1}/{self._max_retries}): {e}"
                 )
             else:
                 if response.status_code == 404:

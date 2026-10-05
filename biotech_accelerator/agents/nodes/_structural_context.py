@@ -35,6 +35,14 @@ def resolved_residues(state: dict[str, Any]) -> Optional[set[int]]:
     return None
 
 
+def has_structural_data(state: dict[str, Any]) -> bool:
+    """True if at least one structure was analysed successfully."""
+    analyses = state.get("structure_analysis") or []
+    if not isinstance(analyses, list):
+        return False
+    return any(getattr(a, "nma_result", None) is not None for a in analyses)
+
+
 def structural_context(state: dict[str, Any]) -> StructuralContext:
     """Pull hinge residues and flexible/rigid regions from the analysed structures.
 

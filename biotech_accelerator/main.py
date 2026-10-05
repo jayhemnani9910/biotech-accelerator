@@ -61,6 +61,20 @@ async def _structure_analysis(pdb_id: str, emit_json: bool) -> int:
     return 0
 
 
+async def _structure_analyses(pdb_ids: list[str], emit_json: bool) -> int:
+    """Analyse each PDB ID. In JSON mode, several IDs print one JSON array."""
+    if emit_json and len(pdb_ids) > 1:
+        results = [await analyze_protein_structure(pdb_id) for pdb_id in pdb_ids]
+        print(json.dumps([_to_jsonable(r) for r in results], indent=2))
+        return 0 if all(r.error is None for r in results) else 1
+
+    exit_code = 0
+    for pdb_id in pdb_ids:
+        rc = await _structure_analysis(pdb_id, emit_json)
+        exit_code = exit_code or rc
+    return exit_code
+
+
 async def _full_pipeline(query: str, emit_json: bool) -> int:
     state = await run_research(query)
 
@@ -99,11 +113,7 @@ async def _structure_fallback(query: str, emit_json: bool) -> int:
         console.print("Try: biotech 'Analyze flexibility of PDB 1LYZ'")
         return 1
 
-    exit_code = 0
-    for pdb_id in pdb_ids:
-        rc = await _structure_analysis(pdb_id, emit_json)
-        exit_code = exit_code or rc
-    return exit_code
+    return await _structure_analyses(pdb_ids, emit_json)
 
 
 def main() -> None:
@@ -126,7 +136,10 @@ Examples:
         "--json",
         dest="emit_json",
         action="store_true",
-        help="Emit machine-readable JSON on stdout (for agents / piping)",
+        help=(
+            "Emit machine-readable JSON on stdout (for agents / piping); "
+            "several PDB IDs print one JSON array"
+        ),
     )
     parser.add_argument(
         "--structure-only",
@@ -151,11 +164,8 @@ Examples:
         )
 
     if args.pdb:
-        exit_code = 0
-        for pdb_id in args.pdb:
-            rc = asyncio.run(_structure_analysis(pdb_id.upper(), args.emit_json))
-            exit_code = exit_code or rc
-        sys.exit(exit_code)
+        pdb_ids = [pdb_id.upper() for pdb_id in args.pdb]
+        sys.exit(asyncio.run(_structure_analyses(pdb_ids, args.emit_json)))
     elif args.query:
         if args.structure_only:
             sys.exit(asyncio.run(_structure_fallback(args.query, args.emit_json)))

@@ -66,3 +66,7 @@ chats.md
 
 # uv lock file — project uses standard pyproject, keep repo tool-agnostic
 uv.lock
+
+# /audit outputs
+graphify-out/
+.audit/
