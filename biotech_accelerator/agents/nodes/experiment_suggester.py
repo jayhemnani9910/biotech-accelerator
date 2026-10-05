@@ -68,7 +68,6 @@ class ExperimentSuggester:
         suggestions = []
 
         # Get data from state
-        mutations = state.get("mutations", [])
         drug_insights = state.get("drug_insights", [])
         pdb_ids = state.get("analyzed_pdb_ids", [])
 
@@ -76,8 +75,7 @@ class ExperimentSuggester:
         hinge_residues, flexible_regions, rigid_regions = structural_context(state)
 
         # 1. Mutation-based suggestions
-        if mutations or hinge_residues:
-            suggestions.extend(self._suggest_mutations(mutations, hinge_residues, rigid_regions))
+        suggestions.extend(self._suggest_mutations(hinge_residues, rigid_regions))
 
         # 2. Drug-based suggestions
         if drug_insights:
@@ -94,7 +92,6 @@ class ExperimentSuggester:
 
     def _suggest_mutations(
         self,
-        known_mutations: list,
         hinge_residues: list[int],
         rigid_regions: list[tuple[int, int]],
     ) -> list[ExperimentSuggestion]:

@@ -7,11 +7,9 @@ import re
 from pathlib import Path
 from typing import Optional
 
-import httpx
-
 from ..domain.protein_models import PDBStructure, ProteinInfo, ProteinSource
 from ..ports.structure import StructureNotFoundError
-from .base import AdapterNotFound, BaseAdapter
+from .base import AdapterNotFound, AdapterParseError, BaseAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -75,31 +73,26 @@ class PDBAdapter(BaseAdapter):
         return local_path
 
     async def _download_structure(self, pdb_id: str, local_path: Path) -> None:
-        """Download PDB structure file (binary/gzip, outside the JSON retry path)."""
+        """Download PDB structure file (gzip first, plain .pdb as fallback)."""
         url = f"{self.BASE_URL}/{pdb_id}.pdb.gz"
         logger.info(f"Downloading structure: {url}")
 
         try:
-            response = await self._client.get(url)
-
-            if response.status_code == 404:
-                url = f"{self.BASE_URL}/{pdb_id}.pdb"
-                response = await self._client.get(url)
-
-            response.raise_for_status()
-
-            if url.endswith(".gz"):
-                content = gzip.decompress(response.content)
-            else:
-                content = response.content
-
-            local_path.write_bytes(content)
-            logger.info(f"Downloaded structure to: {local_path}")
-
-        except httpx.HTTPStatusError as e:
-            if e.response.status_code == 404:
+            response = await self._request("GET", url)
+        except AdapterNotFound:
+            url = f"{self.BASE_URL}/{pdb_id}.pdb"
+            try:
+                response = await self._request("GET", url)
+            except AdapterNotFound as e:
                 raise StructureNotFoundError(pdb_id) from e
-            raise
+
+        if url.endswith(".gz"):
+            content = gzip.decompress(response.content)
+        else:
+            content = response.content
+
+        local_path.write_bytes(content)
+        logger.info(f"Downloaded structure to: {local_path}")
 
     async def _fetch_metadata(self, pdb_id: str) -> dict:
         """Fetch structure metadata from RCSB GraphQL API."""
@@ -211,9 +204,17 @@ class PDBAdapter(BaseAdapter):
             )
 
         try:
-            data = await self._post_json(self.SEARCH_URL, json=search_query)
+            response = await self._request("POST", self.SEARCH_URL, json=search_query)
         except AdapterNotFound:
             return []
+
+        # RCSB answers a query with no hits with 204 and an empty body.
+        if response.status_code == 204 or not response.content:
+            return []
+        try:
+            data = response.json()
+        except ValueError as e:
+            raise AdapterParseError(self.SEARCH_URL, f"Invalid JSON: {e}") from e
 
         return [
             ProteinInfo(name=hit.get("identifier", ""), pdb_id=hit.get("identifier", ""))

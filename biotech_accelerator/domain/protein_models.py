@@ -69,7 +69,7 @@ class NMAResult:
     eigenvectors: np.ndarray
     fluctuations: np.ndarray  # Per-residue fluctuations, in Ca-array order
     collectivity: np.ndarray  # Mode collectivity
-    vibrational_entropy: float
+    vibrational_entropy: float  # relative score (arbitrary ANM units), for comparing structures
     flexibility: FlexibilityMetrics
     # Deposited residue number / chain ID for each entry in `fluctuations`.
     residue_numbers: list[int] = field(default_factory=list)

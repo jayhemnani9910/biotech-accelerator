@@ -23,6 +23,25 @@
             </a>
         </header>
 
+        <!-- Demo Selector -->
+        <nav class="demo-selector" aria-label="Demo scenarios">
+            <span class="demo-label">Try a demo:</span>
+            <button class="demo-btn active" data-demo="lysozyme">
+                🧪 T4 Lysozyme Stability
+            </button>
+            <button class="demo-btn" data-demo="egfr">
+                💊 EGFR Inhibitors
+            </button>
+            <button class="demo-btn" data-demo="braf">
+                🧬 BRAF Mutations
+            </button>
+            <p class="demo-disclaimer">
+                Illustrative walkthrough: the terminal lines and reports are hand-written examples
+                in the tool's report format, not captured output, and nothing runs in your browser.
+                Install the package to run real queries.
+            </p>
+        </nav>
+
         <!-- Main Content -->
         <main class="main">
             <!-- Terminal Section -->
@@ -54,36 +73,50 @@
                     <div class="pipeline-node" id="node-parser">
                         <div class="node-icon">📝</div>
                         <div class="node-label">PARSER</div>
-                        <div class="node-status"></div>
                         <div class="node-output"></div>
+                        <div class="node-status"></div>
                     </div>
-                    <div class="pipeline-arrow">→</div>
+                    <div class="pipeline-arrow" aria-hidden="true"></div>
                     <div class="pipeline-node" id="node-uniprot">
                         <div class="node-icon">🔬</div>
                         <div class="node-label">UNIPROT</div>
-                        <div class="node-status"></div>
                         <div class="node-output"></div>
+                        <div class="node-status"></div>
                     </div>
-                    <div class="pipeline-arrow">→</div>
+                    <div class="pipeline-arrow" aria-hidden="true"></div>
                     <div class="pipeline-node" id="node-pubmed">
                         <div class="node-icon">📚</div>
                         <div class="node-label">PUBMED</div>
-                        <div class="node-status"></div>
                         <div class="node-output"></div>
+                        <div class="node-status"></div>
                     </div>
-                    <div class="pipeline-arrow">→</div>
+                    <div class="pipeline-arrow" aria-hidden="true"></div>
                     <div class="pipeline-node" id="node-structure">
                         <div class="node-icon">🧬</div>
                         <div class="node-label">STRUCTURE</div>
-                        <div class="node-status"></div>
                         <div class="node-output"></div>
+                        <div class="node-status"></div>
                     </div>
-                    <div class="pipeline-arrow">→</div>
+                    <div class="pipeline-arrow" aria-hidden="true"></div>
+                    <div class="pipeline-node" id="node-chembl">
+                        <div class="node-icon">💊</div>
+                        <div class="node-label">CHEMBL</div>
+                        <div class="node-output"></div>
+                        <div class="node-status"></div>
+                    </div>
+                    <div class="pipeline-arrow" aria-hidden="true"></div>
                     <div class="pipeline-node" id="node-synthesis">
                         <div class="node-icon">⚗️</div>
                         <div class="node-label">SYNTHESIS</div>
-                        <div class="node-status"></div>
                         <div class="node-output"></div>
+                        <div class="node-status"></div>
+                    </div>
+                    <div class="pipeline-arrow" aria-hidden="true"></div>
+                    <div class="pipeline-node" id="node-experiments">
+                        <div class="node-icon">🧪</div>
+                        <div class="node-label">EXPERIMENTS</div>
+                        <div class="node-output"></div>
+                        <div class="node-status"></div>
                     </div>
                 </div>
             </section>
@@ -97,27 +130,12 @@
             </section>
         </main>
 
-        <!-- Demo Selector -->
-        <footer class="demo-selector">
-            <span class="demo-label">Try a demo:</span>
-            <button class="demo-btn active" data-demo="lysozyme">
-                🧪 Lysozyme Stability
-            </button>
-            <button class="demo-btn" data-demo="egfr">
-                💊 EGFR Inhibitors
-            </button>
-            <button class="demo-btn" data-demo="braf">
-                🧬 BRAF Mutations
-            </button>
-            <p class="demo-disclaimer">
-                Pre-recorded walkthrough — these runs are replayed from saved output,
-                not executed live in your browser. Install the package to run real queries.
-            </p>
-        </footer>
     </div>
 
     <!-- Scripts -->
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked@15.0.12/marked.min.js"
+            integrity="sha384-948ahk4ZmxYVYOc+rxN1H2gM1EJ2Duhp7uHtZ4WSLkV4Vtx5MUqnV+l7u9B+jFv+"
+            crossorigin="anonymous"></script>
     <script src="js/data.js"></script>
     <script src="js/terminal.js"></script>
     <script src="js/pipeline.js"></script>

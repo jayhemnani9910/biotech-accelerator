@@ -16,6 +16,10 @@ from ...domain.protein_models import NMAResult, PDBStructure
 
 logger = logging.getLogger(__name__)
 
+# A PDB ID is a digit plus three alphanumerics. All-digit tokens such as years
+# ("2020") are not PDB IDs, so at least one of the last three must be a letter.
+PDB_ID_PATTERN = re.compile(r"\b([0-9](?![0-9]{3})[A-Z0-9]{3})\b", re.IGNORECASE)
+
 
 @dataclass
 class StructureAnalysisResult:
@@ -40,8 +44,7 @@ class StructureAnalystAgent:
     - Summarize flexibility and dynamics
     """
 
-    # Common PDB ID pattern
-    PDB_ID_PATTERN = re.compile(r"\b([0-9][A-Z0-9]{3})\b", re.IGNORECASE)
+    PDB_ID_PATTERN = PDB_ID_PATTERN
 
     def __init__(
         self,
@@ -185,7 +188,7 @@ class StructureAnalystAgent:
 **Hinge Residues** (potential motion points):
 {hinges}
 
-**Vibrational Entropy**: {nma.vibrational_entropy:.2f} kcal/(mol·K)
+**Vibrational Entropy** (relative score): {nma.vibrational_entropy:.2f}
 
 **Analysis Notes:**
 - Computed {nma.n_modes} normal modes

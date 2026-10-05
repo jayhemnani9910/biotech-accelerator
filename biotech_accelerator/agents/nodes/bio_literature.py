@@ -11,7 +11,6 @@ from dataclasses import dataclass
 from typing import Any, Optional
 
 from ...adapters.pubmed_adapter import PubMedAdapter
-from ...adapters.uniprot_adapter import UniProtAdapter
 from ...ports.literature import Citation
 
 logger = logging.getLogger(__name__)
@@ -37,31 +36,33 @@ class BioLiteratureAgent:
     - Search PubMed for protein-related papers
     - Extract relevant findings from abstracts
     - Identify mutation and stability mentions
-    - Cross-reference with UniProt data
     """
 
     # Patterns for extracting information
     MUTATION_PATTERN = re.compile(
         r"\b([A-Z])(\d+)([A-Z])\b"  # e.g., A42G, R206W
     )
+    # Lower-case, because they are matched against lower-cased text. Keywords of
+    # three characters or fewer are abbreviations and must match as whole words,
+    # or "tm" hits "treatment" and "ki" hits "kinase".
     STABILITY_KEYWORDS = [
         "stability",
         "stabiliz",
         "destabiliz",
         "thermostab",
         "melting",
-        "Tm",
-        "ΔΔG",
-        "ddG",
+        "tm",
+        "δδg",
+        "ddg",
         "folding",
         "unfolding",
     ]
     BINDING_KEYWORDS = [
         "binding",
         "affinity",
-        "IC50",
-        "Ki",
-        "Kd",
+        "ic50",
+        "ki",
+        "kd",
         "inhibit",
         "agonist",
         "antagonist",
@@ -69,13 +70,8 @@ class BioLiteratureAgent:
         "substrate",
     ]
 
-    def __init__(
-        self,
-        pubmed_adapter: Optional[PubMedAdapter] = None,
-        uniprot_adapter: Optional[UniProtAdapter] = None,
-    ):
+    def __init__(self, pubmed_adapter: Optional[PubMedAdapter] = None):
         self.pubmed = pubmed_adapter or PubMedAdapter()
-        self.uniprot = uniprot_adapter or UniProtAdapter()
 
     async def __call__(self, state: dict[str, Any]) -> dict[str, Any]:
         """
@@ -141,7 +137,7 @@ class BioLiteratureAgent:
         evidence_list.sort(key=lambda e: e.relevance_score, reverse=True)
 
         # Generate literature summary
-        summary = self._generate_summary(evidence_list, query)
+        summary = self._generate_summary(evidence_list, query, total_found=len(unique_citations))
 
         return {
             "literature_citations": unique_citations,
@@ -171,12 +167,12 @@ class BioLiteratureAgent:
             relevance += 0.2
 
         # Check for stability keywords
-        mentions_stability = any(kw in text_lower for kw in self.STABILITY_KEYWORDS)
+        mentions_stability = self._mentions_any(text_lower, self.STABILITY_KEYWORDS)
         if mentions_stability:
             relevance += 0.15
 
         # Check for binding keywords
-        mentions_binding = any(kw in text_lower for kw in self.BINDING_KEYWORDS)
+        mentions_binding = self._mentions_any(text_lower, self.BINDING_KEYWORDS)
         if mentions_binding:
             relevance += 0.15
 
@@ -193,8 +189,8 @@ class BioLiteratureAgent:
             sentences = citation.abstract.split(". ")
             for sentence in sentences:
                 sentence_lower = sentence.lower()
-                if any(
-                    kw in sentence_lower for kw in self.STABILITY_KEYWORDS + self.BINDING_KEYWORDS
+                if self._mentions_any(
+                    sentence_lower, self.STABILITY_KEYWORDS + self.BINDING_KEYWORDS
                 ):
                     key_findings.append(sentence.strip())
                     if len(key_findings) >= 3:
@@ -209,12 +205,25 @@ class BioLiteratureAgent:
             mentions_binding=mentions_binding,
         )
 
+    @staticmethod
+    def _mentions_any(text_lower: str, keywords: list[str]) -> bool:
+        """True if any keyword occurs; short abbreviations must be whole words."""
+        return any(
+            re.search(rf"\b{re.escape(kw)}\b", text_lower) if len(kw) <= 3 else kw in text_lower
+            for kw in keywords
+        )
+
     def _generate_summary(
         self,
         evidence_list: list[LiteratureEvidence],
         query: str,
+        total_found: Optional[int] = None,
     ) -> str:
-        """Generate a summary of literature findings."""
+        """Generate a summary of literature findings.
+
+        `total_found` is the number of unique papers retrieved, which is what
+        literature_count reports; only the first 15 of them are analysed.
+        """
         if not evidence_list:
             return "No relevant literature found."
 
@@ -226,10 +235,15 @@ class BioLiteratureAgent:
         # Top papers
         top_papers = evidence_list[:5]
 
+        found = len(evidence_list) if total_found is None else total_found
+        papers_line = f"**Papers found:** {found}"
+        if found > len(evidence_list):
+            papers_line += f" (top {len(evidence_list)} analysed)"
+
         parts = [
             "## Literature Review\n",
             f"**Query:** {query}\n",
-            f"**Papers found:** {len(evidence_list)}\n",
+            f"{papers_line}\n",
             f"- Mentioning mutations: {mutation_papers}",
             f"- Mentioning stability: {stability_papers}",
             f"- Mentioning binding: {binding_papers}\n",
@@ -250,4 +264,3 @@ class BioLiteratureAgent:
     async def close(self):
         """Close adapters."""
         await self.pubmed.close()
-        await self.uniprot.close()

@@ -10,7 +10,12 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
-from ._structural_context import StructuralContext, resolved_residues, structural_context
+from ._structural_context import (
+    StructuralContext,
+    has_structural_data,
+    resolved_residues,
+    structural_context,
+)
 from .experiment_suggester import ExperimentSuggester
 
 logger = logging.getLogger(__name__)
@@ -74,8 +79,8 @@ class SynthesisAgent:
 
     # Multiple patterns to match mutations in various notations
     MUTATION_PATTERNS = [
-        # Single letter: A42G, R206W
-        re.compile(r"\b([A-Z])(\d+)([A-Z])\b"),
+        # Single letter: A42G, R206W (only the 20 standard amino-acid letters)
+        re.compile(r"\b([ACDEFGHIKLMNPQRSTVWY])(\d+)([ACDEFGHIKLMNPQRSTVWY])\b"),
         # Three letter: Ala42Gly (case insensitive)
         re.compile(
             r"\b(Ala|Arg|Asn|Asp|Cys|Gln|Glu|Gly|His|Ile|Leu|Lys|Met|Phe|Pro|Ser|Thr|Trp|Tyr|Val)(\d+)(Ala|Arg|Asn|Asp|Cys|Gln|Glu|Gly|His|Ile|Leu|Lys|Met|Phe|Pro|Ser|Thr|Trp|Tyr|Val)\b",
@@ -132,13 +137,17 @@ class SynthesisAgent:
         # Structural data comes from the typed NMA results, not the summary prose
         hinge_residues, flexible_regions, _ = self._structural_context(state)
 
-        # Cross-reference mutations with structural data
-        insights = self._generate_insights(
-            mutations,
-            hinge_residues,
-            flexible_regions,
-            resolved_residues=resolved_residues(state),
-        )
+        # Cross-reference mutations with structural data. With no structure
+        # analysed there is nothing to cross-reference against; every mutation
+        # would otherwise be called "in a stable region".
+        insights: list[MutationInsight] = []
+        if has_structural_data(state):
+            insights = self._generate_insights(
+                mutations,
+                hinge_residues,
+                flexible_regions,
+                resolved_residues=resolved_residues(state),
+            )
 
         # Generate experiment suggestions
         suggester = ExperimentSuggester()
@@ -194,6 +203,8 @@ class SynthesisAgent:
                         # Convert three-letter codes if needed
                         orig_single = self.THREE_TO_ONE.get(orig.lower(), orig.upper())
                         mut_single = self.THREE_TO_ONE.get(mut.lower(), mut.upper())
+                        if orig_single == mut_single:
+                            continue  # same residue on both sides is not a substitution
 
                         # Get context
                         start = max(0, match.start() - 50)
@@ -344,7 +355,11 @@ class SynthesisAgent:
 
         if data.mutations and data.pdb_ids:
             hinge = [i for i in data.insights if i.is_hinge_residue]
-            stable = [i for i in data.insights if not i.in_flexible_region and i.is_resolved]
+            stable = [
+                i
+                for i in data.insights
+                if not i.in_flexible_region and not i.is_hinge_residue and i.is_resolved
+            ]
             if stable:
                 recommendations.append(
                     f"**Stabilizing candidates:** {len(stable)} mutations in stable regions"
@@ -409,6 +424,12 @@ class SynthesisAgent:
                 parts.append("### Mutation-Structure Cross-Reference\n")
                 for insight in data.insights[:5]:
                     parts.append(f"{insight.recommendation}\n\n")
+            elif data.mutations:
+                parts.append("### Mutation-Structure Cross-Reference\n")
+                parts.append(
+                    "No structural data: no structure was analysed, so literature "
+                    "mutations were not cross-referenced.\n\n"
+                )
 
             parts.append("### Key Findings\n")
             for finding in self._key_findings(data):

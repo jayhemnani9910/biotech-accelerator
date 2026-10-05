@@ -84,6 +84,9 @@ class ResponseCache:
         except (OSError, json.JSONDecodeError) as e:
             logger.warning(f"Cache read error for {cache_path.name}: {e}")
             return None
+        if not isinstance(cached, dict):
+            logger.warning(f"Cache entry {cache_path.name} is not an object; ignoring it")
+            return None
 
         expiration, value = self._normalize_entry(cached)
         if time.time() > expiration:
@@ -109,7 +112,7 @@ class ResponseCache:
             value: Value to cache (must be JSON-serializable)
             ttl: Time-to-live in seconds (uses default if not specified)
         """
-        ttl = ttl or self.default_ttl
+        ttl = ttl if ttl is not None else self.default_ttl
         expiration = time.time() + ttl
 
         cache_path = self._get_cache_path(namespace, key)
@@ -174,6 +177,9 @@ class ResponseCache:
                     cached = json.load(f)
             except (OSError, json.JSONDecodeError) as e:
                 logger.debug(f"Treating unreadable cache {cache_file.name} as expired: {e}")
+                expired_count += 1
+                continue
+            if not isinstance(cached, dict):
                 expired_count += 1
                 continue
 

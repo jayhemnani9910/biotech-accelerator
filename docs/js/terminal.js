@@ -92,26 +92,6 @@ class Terminal {
     }
 
     /**
-     * Add a loading spinner line
-     */
-    addSpinner(text) {
-        const line = document.createElement('div');
-        line.className = 'output-line';
-        line.innerHTML = `<span class="spinner"></span> ${text}`;
-        this.outputElement.appendChild(line);
-        return line;
-    }
-
-    /**
-     * Remove a specific line
-     */
-    removeLine(line) {
-        if (line && line.parentNode) {
-            line.parentNode.removeChild(line);
-        }
-    }
-
-    /**
      * Sleep utility
      */
     sleep(ms) {
