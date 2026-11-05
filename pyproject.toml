@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "biotech-accelerator"
 dynamic = ["version"]
-description = "Multi-agent AI system for biotech research that reads literature AND runs computational analysis"
+description = "Ask a protein question, get papers, flexibility analysis, active compounds and experiments to try."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
