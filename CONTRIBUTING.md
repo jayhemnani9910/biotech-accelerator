@@ -1,46 +1,49 @@
 # Contributing
 
-Thanks for your interest in improving Biotech Research Accelerator.
+I try to reply to issues within a few days.
 
 ## Dev setup
 
 ```bash
 git clone https://github.com/jayhemnani9910/biotech-accelerator.git
 cd biotech-accelerator
-python -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
 ```
 
-Copy `.env.example` to `.env` and fill in required API keys (OpenAI / Groq) before running integration tests or the pipeline.
+No API keys are needed. The optional settings are in `.env.example`.
 
-## Running tests
+## Tests
 
 ```bash
-# Unit tests (no network, run in CI)
-pytest
-
-# Integration tests (hit live PubMed / PDB / UniProt / ChEMBL)
-pytest -m integration
+pytest                 # unit tests, no network, run in CI
+pytest -m integration  # hits live PubMed, PDB, UniProt and ChEMBL
 ```
 
 ## Style
 
-- Formatter + linter: [ruff](https://docs.astral.sh/ruff/) — config in `pyproject.toml`
-- Python 3.10+, type hints encouraged, dataclasses for data models
-- Before pushing: `ruff check . && ruff format --check .`
+Ruff handles lint and formatting, mypy handles types. CI runs all of these on Python 3.10, 3.11 and 3.12, so run them before you push:
 
-## Pull requests
+```bash
+ruff check .
+ruff format --check .
+mypy biotech_accelerator
+```
 
-1. Fork and create a topic branch (`fix/…`, `feat/…`)
-2. Keep PRs focused — one concern per PR
-3. Update/add tests where it makes sense
-4. Ensure CI is green
-5. Reference any related issue in the PR body (`Fixes #N`)
+Type hints on new code, dataclasses for data models.
 
-## Reporting bugs / requesting features
+## Branches and pull requests
 
-Open an issue using the provided templates in `.github/ISSUE_TEMPLATE/`.
+1. Fork and branch from `main` (`fix/...`, `feat/...`).
+2. One concern per PR.
+3. Add or update tests for behaviour changes.
+4. Run the integration tests if you touched an adapter.
+5. Link the issue in the PR body (`Fixes #N`).
+
+## Bugs and ideas
+
+Open an issue with the bug or feature template. For a bug, include the exact query or command, what you expected, what you got, and your version and OS. Results that look scientifically wrong count as bugs.
 
 ## Code of conduct
 
