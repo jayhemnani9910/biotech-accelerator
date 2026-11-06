@@ -16,10 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   parsed from abstracts, producing confident wet-lab directives from a mismatch.
   Mutations at residues absent from the structure are no longer called "stable".
 - Structural data was flattened to markdown and regex-parsed back out, where a
-  missed pattern returned `[]` — indistinguishable from "no hinges found".
+  missed pattern returned `[]`, indistinguishable from "no hinges found".
   Downstream nodes read the typed NMA results directly.
 - Potency classification did not recognise U+03BC GREEK SMALL LETTER MU, so
-  micromolar values from ChEMBL were graded on the nanomolar scale — a weak 5 µM
+  micromolar values from ChEMBL were graded on the nanomolar scale: a weak 5 µM
   hit was reported as "highly potent (<10 nM)". Ranking now sorts on a common scale.
 - `PUBMED_EMAIL`, `PUBMED_API_KEY` and `PDB_CACHE_DIR` were documented but read by
   nothing; the adapters now read them.
@@ -29,6 +29,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   returning unfiltered results.
 - Structured abstracts lost everything after the first section, including RESULTS
   where mutations are reported; titles truncated at the first inline markup tag.
+- Audit fixes across the adapters, pipeline nodes, CLI and demo site: whole-word
+  keyword matching, retries on all transport errors, approved drugs meaning max
+  phase 4, and several PDB IDs with `--json` printing one JSON array.
 - `chain_ids` was hardcoded empty; `StructureAnalysisResult.structure` was assigned
   `None` despite a non-Optional annotation.
 
@@ -38,14 +41,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dropped ten declared-but-unimported dependencies (~3.8 GB of unused CUDA-enabled
   torch among them); install is 5.2 GB → 553 MB.
 - PubMed responses parse via `defusedxml`; that parse runs on bytes off the network.
-- `run_nma` omits the eigenvector matrix and reports its shape — payload 1.5 MB → 16 KB.
+- `run_nma` omits the eigenvector matrix and reports its shape: payload 1.5 MB → 16 KB.
 - Docker image installs non-editable and runs as a non-root user.
 - Version is single-sourced from `biotech_accelerator/version.py`.
 
 ### Added
 - `search_structures`, `cache_stats` and `clear_cache` MCP tools. The response
   cache previously had no way to be inspected or cleared.
-- Test suite grown from 51 to 153, including coverage of the MCP protocol surface.
+- Test suite grown to 195 unit tests, including coverage of the MCP protocol surface.
 
 ### Removed
 - 17 unreferenced public symbols and two unused domain classes.
@@ -69,4 +72,5 @@ Initial release.
 - Dockerfile for reproducible installs (avoids native ProDy/RDKit build issues).
 - GitHub Pages interactive demo.
 
+[Unreleased]: https://github.com/jayhemnani9910/biotech-accelerator/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/jayhemnani9910/biotech-accelerator/releases/tag/v0.1.0

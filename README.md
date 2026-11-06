@@ -1,325 +1,139 @@
 # Biotech Research Accelerator
 
-[![CI](https://github.com/jayhemnani9910/biotech-accelerator/actions/workflows/ci.yml/badge.svg)](https://github.com/jayhemnani9910/biotech-accelerator/actions/workflows/ci.yml)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+![Terminal demo: real biotech CLI output for 1LYZ, lysozyme and EGFR queries](docs/demo.gif)
 
-## Demo
+[![CI](https://github.com/jayhemnani9910/biotech-accelerator/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/jayhemnani9910/biotech-accelerator/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Interactive demo: **[jayhemnani9910.github.io/biotech-accelerator](https://jayhemnani9910.github.io/biotech-accelerator/)**
-
-![Biotech Research Accelerator](docs/diagrams/social-preview.png)
-
-A multi-agent AI system that doesn't just READ about biology - it ANALYZES molecular data, cross-references literature with computational evidence, and suggests experiments.
-
-## What Makes It Different
-
-Current research agents (OpenAI Deep Research, Gemini, etc.) can **read** about biology.
-
-This system can **read + analyze + recommend**:
-
-```
-User: "What mutations stabilize lysozyme? Analyze PDB 1LYZ"
-         ↓
-[PARSER] Extract proteins, PDB IDs, detect query type
-         ↓
-[UNIPROT] Resolve protein names → UniProt IDs → PDB structures
-         ↓
-[PUBMED] Search literature for mutations and stability data
-         ↓
-[STRUCTURE] Fetch PDB, run ANM/GNM analysis for flexibility
-         ↓
-[CHEMBL] Search for active compounds (if drug query detected)
-         ↓
-[SYNTHESIS] Cross-reference mutations with flexible regions
-         ↓
-[EXPERIMENTS] Generate actionable experiment suggestions
-         ↓
-Final Report with citations, structural insights, and next steps
-```
-
-## Features
-
-### 1. Literature Analysis
-- PubMed search with proper query construction
-- Mutation extraction from abstracts (e.g., V600E, L858R)
-- Relevance scoring and deduplication
-- Rate limiting and retry logic
-
-### 2. Structural Analysis
-- PDB structure fetching from RCSB
-- Normal Mode Analysis (ANM/GNM) via ProDy
-- Flexibility profiling (flexible/rigid regions)
-- Hinge residue identification
-
-### 3. Drug Discovery
-- ChEMBL integration for bioactivity data
-- Target-based compound search
-- Potency classification (<10nM, 10-100nM, etc.)
-- Known drug identification
-
-### 4. Intelligent Synthesis
-- Cross-reference mutations with structure
-- Map mutations to flexible/rigid regions
-- Identify hinge-affecting mutations
-- Generate experiment suggestions
-
-## Installation
-
-With [uv](https://github.com/astral-sh/uv) (recommended — handles venv creation):
+Ask a protein question, get papers, flexibility analysis, active compounds and experiments to try.
 
 ```bash
-git clone https://github.com/jayhemnani9910/biotech-accelerator.git
-cd biotech-accelerator
-uv venv
-uv pip install -e ".[dev]"
+pip install git+https://github.com/jayhemnani9910/biotech-accelerator.git
 ```
 
-With stdlib `venv` + `pip`:
-
-```bash
-git clone https://github.com/jayhemnani9910/biotech-accelerator.git
-cd biotech-accelerator
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e ".[dev]"
-```
-
-> On Debian/Ubuntu you may see `externally-managed-environment` if you try
-> `pip install -e .` against system Python. Always install inside a venv.
-
-### Dependencies
-- Python 3.10+
-- ProDy (Normal Mode Analysis)
-- httpx (async HTTP client)
-- LangGraph (workflow orchestration)
-- Rich (terminal formatting)
-
-### Docker
-
-Avoids building ProDy and its scientific stack natively:
-
-```bash
-docker build -t biotech-accelerator .
-docker run --rm -it --env-file .env biotech-accelerator
-```
-
-## Configuration
-
-The current pipeline is deterministic and does not require an LLM API key. LLM-
-powered nodes are planned for a later iteration (see the project plan).
-
-| Variable | Required | Default | Purpose |
-|----------|----------|---------|---------|
-| `PUBMED_EMAIL` | recommended | `biotech-accelerator@example.com` | Contact email sent with NCBI PubMed requests; avoids rate-limit throttling. |
-| `PUBMED_API_KEY` | no | — | NCBI API key for higher PubMed rate limits. |
-| `PDB_CACHE_DIR` | no | `~/.biotech-accelerator/pdb_cache` | Local directory for cached PDB structure files. |
-
-UniProt, RCSB PDB, and ChEMBL require no API key.
+Python 3.10+. Use a venv: Debian and Ubuntu refuse `pip install` against system Python.
 
 ## Usage
 
-### Python API
+```bash
+biotech "What mutations stabilize lysozyme? Analyze PDB 1LYZ"
+biotech "Find EGFR inhibitors"
+biotech --pdb 1LYZ 4HHB
+biotech --pdb 1LYZ --json
+```
+
+No API keys needed. There is no LLM in this: every step is plain code calling public databases, so the structure analysis gives the same numbers each run. PubMed results change as new papers appear. Logs go to stderr, so add `2>/dev/null` for just the report.
+
+Real output of `biotech --pdb 1LYZ`, which takes about 5 seconds:
+
+```
+Structure Analysis: 1LYZ
+
+Flexibility Profile:
+ • Mean fluctuation: 0.145 Å²
+ • Max fluctuation: 1.495 Å²
+
+Flexible Regions (high mobility): residues 45-50, residues 67-73, residues 101-103
+Rigid Core Regions (stable): residues 8-13, residues 23-41, residues 52-59
+Hinge Residues (potential motion points): 46, 47, 48, 49, 50
+Vibrational Entropy (relative score): -0.19
+```
+
+The site at [jayhemnani9910.github.io/biotech-accelerator](https://jayhemnani9910.github.io/biotech-accelerator/) is a walkthrough of the pipeline. Its terminal lines are hand-written examples and nothing runs in your browser. Install the package to run real queries.
+
+## How it works
+
+The query goes through a LangGraph pipeline:
+
+```
+parse_query       pull out PDB IDs, protein names, and whether it's a drug question
+resolve_proteins  protein name -> UniProt ID -> PDB structures
+literature        PubMed search, dedupe by PMID, score relevance
+structure         download the PDB file, run normal mode analysis with ProDy
+drug              ChEMBL search, only for drug questions
+synthesis         map mutations onto flexible and rigid regions, suggest experiments
+```
+
+| Source | Used for | Key |
+|--------|----------|-----|
+| PubMed | Papers and mutation mentions (V600E, Ala42Gly, p.V600E) | Optional |
+| UniProt | Protein names to IDs and structures | None |
+| RCSB PDB | Structure files | None |
+| ChEMBL | Compound activity and approved drugs (max phase 4) | None |
+| ProDy | ANM normal modes, run locally on your machine | None |
+
+- Compounds are ranked on a common nM scale and graded: under 10 nM, 10-100 nM, 100-1000 nM.
+- API responses are cached for 24 hours. PDB files are cached in `~/.biotech-accelerator/pdb_cache`.
+- PubMed requests are spaced 400 ms apart. Failed requests retry with exponential backoff.
+
+## Known rough edges
+
+These show up in real runs. The results are a starting point, so check them before you plan lab work.
+
+- The mutation regex can match things that aren't mutations. T4L, short for T4 lysozyme, gets reported as a mutation.
+- The whole question goes to PubMed as typed, so "Find EGFR inhibitors" also returns the FIND-CKD trial.
+- IC50 values print to one decimal place, so very small values show as `0.0 nM`.
+
+## Configuration
+
+All optional. See `.env.example`.
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `PUBMED_EMAIL` | `biotech-accelerator@example.com` | Contact email sent to NCBI with each request |
+| `PUBMED_API_KEY` | none | NCBI key for higher PubMed rate limits |
+| `PDB_CACHE_DIR` | `~/.biotech-accelerator/pdb_cache` | Where structure files are cached |
+
+## Docker
+
+```bash
+docker build -t biotech-accelerator .
+docker run --rm biotech-accelerator --pdb 1LYZ
+```
+
+## Python
 
 ```python
 import asyncio
 from biotech_accelerator.graph.biotech_graph import run_research
 
-
-async def main():
-    # Stability research
-    result = await run_research("What mutations stabilize lysozyme?")
-    print(result["final_report"])
-
-    # Drug discovery
-    result = await run_research("Find inhibitors for EGFR kinase")
-    print(result["final_report"])
-
-
-asyncio.run(main())
+result = asyncio.run(run_research("What mutations stabilize lysozyme?"))
+print(result["final_report"])
 ```
 
-### CLI
+Adapter methods are listed in [docs/api.md](docs/api.md). `example_walkthrough.py` runs each layer on its own, then the full pipeline.
 
-The `biotech` entry point lives in the venv's `bin/`, so unless you have
-the venv activated you'll get `command not found`. Two ways around that:
+## MCP server
 
-```bash
-# Activate the venv first
-source .venv/bin/activate
-biotech "What mutations stabilize lysozyme?"
-biotech "Find EGFR inhibitors" --json
-biotech --pdb 1LYZ 4HHB
-biotech --pdb 1LYZ --json
+`biotech-mcp` exposes the pipeline as 14 tools to Claude Code or any other MCP client. Clone the repo, install [uv](https://github.com/astral-sh/uv), and start your client from the repo root. It picks up `.mcp.json`, which launches the server with `uv run`. For a plain venv, point `command` in `.mcp.json` at `./.venv/bin/biotech-mcp`.
 
-# Or invoke without activation via uv (or use ./.venv/bin/biotech)
-uv run biotech "Analyze flexibility of PDB 1LYZ" --json
-uv run biotech --pdb 1LYZ 4HHB
+| Group | Tools |
+|-------|-------|
+| Literature | `search_literature`, `search_literature_by_protein` |
+| Structures | `resolve_protein`, `fetch_structure`, `run_nma`, `search_structures` |
+| Compounds | `search_compounds_by_target`, `get_compound`, `get_approved_drugs_for_target` |
+| Analysis | `extract_mutations`, `cross_reference_mutations`, `run_research` |
+| Cache | `cache_stats`, `clear_cache` |
 
-# Run integration tests (hits live APIs)
-uv run pytest -m integration
-```
-
-If neither `biotech` nor `uv` is available (e.g. a lightweight sandbox),
-`python3 -m biotech_accelerator.main …` works from the repo root without
-any install at all.
-
-### Use with Claude Code (MCP)
-
-The repository ships an MCP server so Claude Code (or any MCP-compatible
-client) can call the biotech pipeline as native tools. The server is
-registered via `.mcp.json` at the repo root, which launches the server
-through `uv run biotech-mcp` — no manual venv activation required:
-
-```bash
-# Install the package first (see Installation above)
-uv pip install -e .
-
-# Launch Claude Code from the repo root — it picks up .mcp.json automatically.
-# Claude Code then exposes these tools under the `mcp__biotech__*` namespace:
-#   Literature:  search_literature, search_literature_by_protein
-#   Structures:  resolve_protein, fetch_structure, run_nma, search_structures
-#   Compounds:   search_compounds_by_target, get_compound,
-#                get_approved_drugs_for_target
-#   Analysis:    extract_mutations, cross_reference_mutations, run_research
-#   Cache:       cache_stats, clear_cache
-```
-
-If you prefer a plain venv (no uv), edit `.mcp.json` to point `command` at
-your venv's `biotech-mcp` script (e.g. `./.venv/bin/biotech-mcp`).
-
-## Example Queries
-
-| Query | What It Does |
-|-------|--------------|
-| "What mutations stabilize lysozyme?" | Literature + structure analysis |
-| "Analyze PDB 1LYZ" | NMA flexibility analysis |
-| "Find EGFR inhibitors" | ChEMBL drug search |
-| "BRAF V600E mutation analysis" | Combined research |
-
-## Architecture
+## Project layout
 
 ```
-biotech-accelerator/
-├── biotech_accelerator/
-│   ├── adapters/           # API integrations
-│   │   ├── pdb_adapter.py      # RCSB PDB
-│   │   ├── pubmed_adapter.py   # NCBI PubMed
-│   │   ├── uniprot_adapter.py  # UniProt
-│   │   └── chembl_adapter.py   # ChEMBL
-│   │
-│   ├── agents/nodes/       # LangGraph agents
-│   │   ├── structure_analyst.py
-│   │   ├── bio_literature.py
-│   │   ├── drug_binding.py
-│   │   ├── synthesis.py
-│   │   └── experiment_suggester.py
-│   │
-│   ├── analysis/           # Computational wrappers
-│   │   └── nma_wrapper.py      # ProDy ANM/GNM
-│   │
-│   ├── domain/             # Data models
-│   │   ├── protein_models.py
-│   │   └── compound_models.py
-│   │
-│   ├── graph/              # LangGraph workflow
-│   │   └── biotech_graph.py
-│   │
-│   ├── ports/              # Data models
-│   │   ├── structure.py
-│   │   ├── sequence.py
-│   │   ├── literature.py
-│   │   └── compound.py
-│   │
-│   └── utils/              # Utilities
-│       └── cache.py            # Response caching
-│
-├── examples/               # Example scripts
-├── tests/                  # Unit + integration tests
-└── README.md
-```
-
-## Pipeline Flow
-
-```
-parse_query_node
-       ↓
-resolve_proteins_node (UniProt → PDB mapping)
-       ↓
-literature_node (PubMed search)
-       ↓
-structure_node (PDB + NMA analysis)
-       ↓
-drug_node (ChEMBL search, if drug query)
-       ↓
-synthesis_node (combine all evidence + experiments)
-       ↓
-     END
-```
-
-## Data Sources
-
-| Source | Data Type | Status |
-|--------|-----------|--------|
-| PubMed | Research papers | ✅ Working |
-| RCSB PDB | Protein structures | ✅ Working |
-| UniProt | Sequences, annotations | ✅ Working |
-| ChEMBL | Compound bioactivity | ✅ Working |
-| ProDy | ANM/GNM analysis | ✅ Working |
-
-## Performance Features
-
-- **Caching**: API responses cached for 24h
-- **Rate limiting**: PubMed requests throttled to avoid 429 errors
-- **Retry logic**: Automatic retry with exponential backoff
-- **Parallel search**: Multiple protein-specific searches
-
-## Example Output
-
-```
-# Biotech Research Report
-
-**Query:** What mutations stabilize lysozyme? Analyze PDB 1LYZ
-
-## Literature Evidence
-- 5 papers found
-- 1 mutation identified: D67H
-
-## Computational Analysis
-**Analyzed structures:** 1LYZ
-
-**Flexibility Profile:**
-- Mean fluctuation: 0.145 Å²
-- Flexible regions: 44-49, 66-72, 100-102
-- Hinge residues: 45, 46, 47, 48, 49
-
-## Synthesis & Insights
-- D67H is in a flexible region
-- May alter local dynamics
-
-## Suggested Experiments
-
-### 1. Engineer stabilizing mutations in rigid core
-**Methods:**
-- Design conservative mutations in rigid core
-- Use Rosetta for ΔΔG predictions
-- Measure stability via DSF thermal melt
-
-### 2. Probe hinge dynamics at positions 45, 46, 47
-**Methods:**
-- Design Gly→Pro mutations to rigidify
-- Use NMR relaxation to probe dynamics
+biotech_accelerator/
+  adapters/       PubMed, RCSB PDB, UniProt, ChEMBL clients
+  agents/nodes/   literature, structure, drug, synthesis and experiment steps
+  analysis/       ProDy normal mode wrapper
+  domain/         protein and compound models
+  graph/          the LangGraph pipeline
+  ports/          data models for the adapters
+  utils/          cache and JSON serialization
+  main.py         biotech CLI
+  mcp_server.py   biotech-mcp server
+tests/            195 unit tests, 6 live API tests
 ```
 
 ## Contributing
 
-This project combines several repositories:
-- `revolu-idea`: Multi-agent orchestration
-- `nobel-dataintelligence`: Molecular analysis
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for dev setup and PR guidelines.
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-MIT
+[MIT](LICENSE)
